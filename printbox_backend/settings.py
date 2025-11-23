@@ -177,11 +177,11 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # CSRF Trusted Origins (for admin panel and forms)
-CSRF_TRUSTED_ORIGINS = [
-    'https://web-production-d7d11.up.railway.app',
-    'https://printbox3d.com',
-    'https://www.printbox3d.com',
-]
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://web-production-d7d11.up.railway.app,https://printbox3d.com,https://www.printbox3d.com',
+    cast=Csv()
+)
 
 # Allow Railway backend to be accessed (for testing)
 CORS_ALLOW_ALL_ORIGINS = False
