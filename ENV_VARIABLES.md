@@ -29,7 +29,7 @@ print(get_random_secret_key())
 
 **Supabase Connection Pooling (Port 6543):**
 ```
-postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:6543/postgres?pgbouncer=true
+postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:6543/postgres
 ```
 
 **Supabase Direct Connection (Port 5432):**
@@ -119,7 +119,7 @@ SECRET_KEY=prod-secret-key-50-chars-long-xxxxxxxxxxxxxxxxxx
 DEBUG=False
 ALLOWED_HOSTS=api.printbox3d.com,printbox3d-backend.railway.app
 
-DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
 
 DIRECT_DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
 

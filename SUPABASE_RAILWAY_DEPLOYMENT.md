@@ -30,7 +30,7 @@ This guide explains how to deploy the PrintBox3D backend to Railway using Supaba
 Your URLs should look like:
 ```
 # Connection Pooling (for app)
-postgresql://postgres.mnnkthouavmpcycsvpog:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+postgresql://postgres.mnnkthouavmpcycsvpog:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
 
 # Direct Connection (for migrations)
 postgresql://postgres.mnnkthouavmpcycsvpog:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
@@ -48,7 +48,7 @@ DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database Configuration
-DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_ACTUAL_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_ACTUAL_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
 
 # Direct database connection (used for migrations)
 DIRECT_DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_ACTUAL_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
@@ -93,7 +93,7 @@ DEBUG=False
 ALLOWED_HOSTS=your-app-name.railway.app,printbox3d.com,www.printbox3d.com
 
 # Database URLs (from Supabase)
-DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
 
 DIRECT_DATABASE_URL=postgresql://postgres.mnnkthouavmpcycsvpog:YOUR_PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
 

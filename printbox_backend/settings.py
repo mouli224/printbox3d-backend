@@ -83,20 +83,24 @@ database_url = config('DATABASE_URL', default='')
 
 # Only use PostgreSQL if DATABASE_URL is provided and not empty
 if database_url and database_url.strip():
-    # Use DIRECT_DATABASE_URL for migrations (bypasses connection pooling)
-    # Use DATABASE_URL for normal operations (with connection pooling)
-    db_url = config('DIRECT_DATABASE_URL', default='') if is_migration else database_url
-    
+    # Parse the database URL and remove unsupported parameters like ?pgbouncer=true
     DATABASES = {
-        'default': dj_database_url.config(
-            default=db_url,
-            conn_max_age=0 if is_migration else 600,
+        'default': dj_database_url.parse(
+            database_url,
+            conn_max_age=600,
             conn_health_checks=True,
         )
     }
     
-    # Disable connection pooling for migrations
+    # For migrations, use direct connection if available (bypasses PgBouncer)
     if is_migration:
+        direct_url = config('DIRECT_DATABASE_URL', default='')
+        if direct_url and direct_url.strip():
+            DATABASES['default'] = dj_database_url.parse(
+                direct_url,
+                conn_max_age=0,
+                conn_health_checks=False,
+            )
         DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
     # Local development with SQLite
@@ -157,12 +161,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000',
-    cast=Csv()
-)
+# CORS_ALLOWED_ORIGINS = config(
+#     'CORS_ALLOWED_ORIGINS',
+#     default='http://localhost:3000',
+#     cast=Csv()
+# )
 
+# Use explicit allowed origins (safer than wildcard in prod)
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'https://printbox3d.com',
+    'https://www.printbox3d.com',
+    'https://printbox3d.in',
+    'https://www.printbox3d.in',
+]
+
+# Allow Railway backend to be accessed (for testing)
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 

@@ -66,7 +66,7 @@ python manage.py createsuperuser
 **Option B: Supabase PostgreSQL**
 ```bash
 # Update .env with your Supabase credentials
-DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.supabase.com:6543/postgres
 DIRECT_DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.supabase.com:5432/postgres
 
 # Run migrations
