@@ -78,10 +78,14 @@ WSGI_APPLICATION = 'printbox_backend.wsgi.application'
 import sys
 is_migration = 'migrate' in sys.argv or 'makemigrations' in sys.argv
 
-if config('DATABASE_URL', default=''):
+# Get database URL from environment
+database_url = config('DATABASE_URL', default='')
+
+# Only use PostgreSQL if DATABASE_URL is provided and not empty
+if database_url and database_url.strip():
     # Use DIRECT_DATABASE_URL for migrations (bypasses connection pooling)
     # Use DATABASE_URL for normal operations (with connection pooling)
-    db_url = config('DIRECT_DATABASE_URL', default='') if is_migration else config('DATABASE_URL')
+    db_url = config('DIRECT_DATABASE_URL', default='') if is_migration else database_url
     
     DATABASES = {
         'default': dj_database_url.config(
