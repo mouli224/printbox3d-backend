@@ -17,7 +17,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,www.printbox3d.com,printbox3d.com,www.printbox3d.in,printbox3d.in', cast=Csv())
 
 
 # Application definition
@@ -174,6 +174,13 @@ CORS_ALLOWED_ORIGINS = [
     'https://www.printbox3d.com',
     'https://printbox3d.in',
     'https://www.printbox3d.in',
+]
+
+# CSRF Trusted Origins (for admin panel and forms)
+CSRF_TRUSTED_ORIGINS = [
+    'https://web-production-d7d11.up.railway.app',
+    'https://printbox3d.com',
+    'https://www.printbox3d.com',
 ]
 
 # Allow Railway backend to be accessed (for testing)
