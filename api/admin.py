@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Category, Material, Product, CustomOrder,
-    ContactMessage, Newsletter, Testimonial
+    ContactMessage, Newsletter, Testimonial,
+    Order, OrderItem, Payment
 )
 
 
@@ -38,7 +39,8 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('color', 'dimensions', 'weight')
         }),
         ('Images', {
-            'fields': ('image', 'image_2', 'image_3')
+            'fields': ('image', 'image_2', 'image_3', 'frontend_image'),
+            'description': 'Upload images or specify frontend image filename (e.g., geometric_planter.jpg)'
         }),
         ('SEO', {
             'fields': ('meta_description',),
@@ -119,3 +121,79 @@ class TestimonialAdmin(admin.ModelAdmin):
     search_fields = ['name', 'company', 'message']
     list_editable = ['is_featured']
     readonly_fields = ['created_at']
+
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+    readonly_fields = ['product', 'product_name', 'product_price', 'product_image', 'quantity', 'subtotal']
+    can_delete = False
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ['order_id', 'customer_name', 'customer_email', 'total_amount', 'status', 'payment_status', 'created_at']
+    list_filter = ['status', 'payment_status', 'created_at']
+    search_fields = ['order_id', 'customer_name', 'customer_email', 'customer_phone', 'razorpay_order_id', 'razorpay_payment_id']
+    list_editable = ['status']
+    readonly_fields = ['order_id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'created_at', 'updated_at']
+    inlines = [OrderItemInline]
+    
+    fieldsets = (
+        ('Order Information', {
+            'fields': ('order_id', 'status', 'payment_status', 'total_amount')
+        }),
+        ('Customer Details', {
+            'fields': ('customer_name', 'customer_email', 'customer_phone')
+        }),
+        ('Shipping Address', {
+            'fields': ('shipping_address', 'shipping_city', 'shipping_state', 'shipping_pincode')
+        }),
+        ('Payment Information', {
+            'fields': ('razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature')
+        }),
+        ('Fulfillment', {
+            'fields': ('tracking_number', 'admin_notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Orders should only be created through the API
+        return False
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ['razorpay_order_id', 'order', 'amount', 'currency', 'status', 'payment_method', 'created_at']
+    list_filter = ['status', 'currency', 'created_at']
+    search_fields = ['razorpay_order_id', 'razorpay_payment_id', 'order__order_id', 'order__customer_email']
+    readonly_fields = ['order', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'amount', 'currency', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Payment Information', {
+            'fields': ('order', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature')
+        }),
+        ('Amount Details', {
+            'fields': ('amount', 'currency', 'status', 'payment_method')
+        }),
+        ('Error Information', {
+            'fields': ('error_code', 'error_description'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Payments should only be created through the API
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Don't allow deletion of payment records
+        return False

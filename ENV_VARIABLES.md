@@ -98,6 +98,39 @@ No environment variables needed for JWT configuration.
 
 ---
 
+## 💳 Razorpay Payment Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `RAZORPAY_KEY_ID` | Yes | - | Razorpay API Key ID |
+| `RAZORPAY_KEY_SECRET` | Yes | - | Razorpay API Key Secret |
+
+**How to Get Razorpay Keys:**
+1. Sign up at [razorpay.com](https://razorpay.com)
+2. Complete KYC verification
+3. Go to Settings → API Keys
+4. Generate Test Mode keys for development
+5. Generate Live Mode keys for production
+
+**Example:**
+```env
+# Test Mode (Development)
+RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Live Mode (Production)
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**⚠️ Important:**
+- Test mode keys work with test card numbers only
+- Live mode keys process real payments
+- Never commit keys to Git
+- Keep SECRET separate from KEY_ID
+
+---
+
 ## 📝 Example Configurations
 
 ### Local Development
@@ -130,6 +163,9 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=noreply@printbox3d.com
 EMAIL_HOST_PASSWORD=your-app-specific-password
+
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ---

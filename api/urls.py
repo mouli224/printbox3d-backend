@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     CategoryViewSet, MaterialViewSet, ProductViewSet,
     CustomOrderViewSet, ContactMessageViewSet,
-    NewsletterViewSet, TestimonialViewSet
+    NewsletterViewSet, TestimonialViewSet,
+    create_order, verify_payment, get_order_status, payment_failed
 )
 from .auth_views import register, login, logout, get_user_profile, update_user_profile
 
@@ -27,4 +28,10 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/profile/', get_user_profile, name='profile'),
     path('auth/profile/update/', update_user_profile, name='profile_update'),
+    
+    # Payment endpoints
+    path('orders/create/', create_order, name='create_order'),
+    path('orders/verify-payment/', verify_payment, name='verify_payment'),
+    path('orders/<str:order_id>/', get_order_status, name='order_status'),
+    path('orders/payment-failed/', payment_failed, name='payment_failed'),
 ]

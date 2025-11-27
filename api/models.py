@@ -59,6 +59,13 @@ class Product(models.Model):
     image_2 = models.ImageField(upload_to='products/', blank=True, null=True)
     image_3 = models.ImageField(upload_to='products/', blank=True, null=True)
     
+    # Frontend image optimization
+    frontend_image = models.CharField(
+        max_length=200, 
+        blank=True,
+        help_text="Filename of optimized image in frontend (e.g., 'geometric_planter.jpg'). Leave blank to use uploaded image."
+    )
+    
     # Stock and availability
     stock_quantity = models.PositiveIntegerField(default=0)
     is_available = models.BooleanField(default=True)
@@ -195,3 +202,124 @@ class Testimonial(models.Model):
 
     def __str__(self):
         return f"Testimonial from {self.name}"
+
+
+class Order(models.Model):
+    """Customer orders"""
+    
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending Payment'),
+        ('PAID', 'Payment Successful'),
+        ('PROCESSING', 'Processing'),
+        ('SHIPPED', 'Shipped'),
+        ('DELIVERED', 'Delivered'),
+        ('CANCELLED', 'Cancelled'),
+        ('FAILED', 'Payment Failed'),
+    ]
+    
+    # Order identification
+    order_id = models.CharField(max_length=100, unique=True, editable=False)
+    
+    # Customer information
+    customer_name = models.CharField(max_length=200)
+    customer_email = models.EmailField()
+    customer_phone = models.CharField(max_length=20)
+    
+    # Shipping address
+    shipping_address = models.TextField()
+    shipping_city = models.CharField(max_length=100)
+    shipping_state = models.CharField(max_length=100)
+    shipping_pincode = models.CharField(max_length=20)
+    
+    # Order details
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    
+    # Payment tracking
+    razorpay_order_id = models.CharField(max_length=100, blank=True, null=True)
+    razorpay_payment_id = models.CharField(max_length=100, blank=True, null=True)
+    razorpay_signature = models.CharField(max_length=200, blank=True, null=True)
+    payment_status = models.CharField(max_length=20, default='PENDING')
+    
+    # Tracking
+    tracking_number = models.CharField(max_length=100, blank=True)
+    admin_notes = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.order_id:
+            # Generate unique order ID
+            import random
+            import string
+            from django.utils import timezone
+            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+            random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+            self.order_id = f"ORD{timestamp}{random_str}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Order {self.order_id} - {self.customer_name}"
+
+
+class OrderItem(models.Model):
+    """Items in an order"""
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    
+    # Product snapshot (in case product is deleted/modified later)
+    product_name = models.CharField(max_length=200)
+    product_price = models.DecimalField(max_digits=10, decimal_places=2)
+    product_image = models.CharField(max_length=500, blank=True)
+    
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.product_name} x {self.quantity}"
+
+
+class Payment(models.Model):
+    """Payment transactions"""
+    
+    STATUS_CHOICES = [
+        ('CREATED', 'Created'),
+        ('AUTHORIZED', 'Authorized'),
+        ('CAPTURED', 'Captured'),
+        ('FAILED', 'Failed'),
+        ('REFUNDED', 'Refunded'),
+    ]
+    
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
+    
+    # Razorpay details
+    razorpay_order_id = models.CharField(max_length=100)
+    razorpay_payment_id = models.CharField(max_length=100, blank=True, null=True)
+    razorpay_signature = models.CharField(max_length=200, blank=True, null=True)
+    
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default='INR')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='CREATED')
+    
+    # Additional payment info
+    payment_method = models.CharField(max_length=50, blank=True)
+    error_code = models.CharField(max_length=100, blank=True)
+    error_description = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Payment for {self.order.order_id} - {self.status}"

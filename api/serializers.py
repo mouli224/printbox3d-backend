@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     Category, Material, Product, CustomOrder,
-    ContactMessage, Newsletter, Testimonial
+    ContactMessage, Newsletter, Testimonial,
+    Order, OrderItem, Payment
 )
 
 
@@ -30,7 +31,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'price', 'image', 'category_name',
+            'id', 'name', 'slug', 'price', 'image', 'frontend_image', 'category_name',
             'material_name', 'is_featured', 'is_available', 'stock_quantity'
         ]
 
@@ -45,8 +46,8 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'category', 'material',
             'color', 'dimensions', 'weight', 'image', 'image_2', 'image_3',
-            'stock_quantity', 'is_available', 'is_featured', 'meta_description',
-            'created_at', 'updated_at'
+            'frontend_image', 'stock_quantity', 'is_available', 'is_featured', 
+            'meta_description', 'created_at', 'updated_at'
         ]
 
 
@@ -101,3 +102,91 @@ class TestimonialSerializer(serializers.ModelSerializer):
     class Meta:
         model = Testimonial
         fields = ['id', 'name', 'company', 'rating', 'message', 'image', 'created_at']
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    """Serializer for order items"""
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product', 'product_name', 'product_price', 'product_image', 'quantity', 'subtotal']
+        read_only_fields = ['id']
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """Serializer for creating and viewing orders"""
+    items = OrderItemSerializer(many=True)
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'order_id', 'customer_name', 'customer_email', 'customer_phone',
+            'shipping_address', 'shipping_city', 'shipping_state', 'shipping_pincode',
+            'status', 'total_amount', 'payment_status', 'tracking_number',
+            'items', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'order_id', 'status', 'payment_status', 'created_at', 'updated_at']
+    
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        order = Order.objects.create(**validated_data)
+        
+        for item_data in items_data:
+            OrderItem.objects.create(order=order, **item_data)
+        
+        return order
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    """Serializer for payment details"""
+    order_id = serializers.CharField(source='order.order_id', read_only=True)
+    
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'order_id', 'razorpay_order_id', 'razorpay_payment_id',
+            'amount', 'currency', 'status', 'payment_method',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'order_id', 'created_at', 'updated_at']
+
+
+class CreateOrderSerializer(serializers.Serializer):
+    """Serializer for creating a new order with items"""
+    customer_name = serializers.CharField(max_length=200)
+    customer_email = serializers.EmailField()
+    customer_phone = serializers.CharField(max_length=20)
+    shipping_address = serializers.CharField()
+    shipping_city = serializers.CharField(max_length=100)
+    shipping_state = serializers.CharField(max_length=100)
+    shipping_pincode = serializers.CharField(max_length=20)
+    items = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField()
+        )
+    )
+    
+    def validate_items(self, value):
+        """Validate cart items"""
+        if not value:
+            raise serializers.ValidationError("Cart cannot be empty")
+        
+        for item in value:
+            if 'product_id' not in item or 'quantity' not in item:
+                raise serializers.ValidationError("Each item must have product_id and quantity")
+            
+            try:
+                quantity = int(item['quantity'])
+                if quantity < 1:
+                    raise serializers.ValidationError("Quantity must be at least 1")
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Invalid quantity value")
+        
+        return value
+
+
+class PaymentVerificationSerializer(serializers.Serializer):
+    """Serializer for verifying Razorpay payment"""
+    razorpay_order_id = serializers.CharField()
+    razorpay_payment_id = serializers.CharField()
+    razorpay_signature = serializers.CharField()
+    order_id = serializers.CharField()
