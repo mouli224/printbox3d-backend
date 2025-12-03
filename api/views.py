@@ -9,6 +9,12 @@ import razorpay
 import hmac
 import hashlib
 
+from .email_utils import (
+    send_order_confirmation_email,
+    send_custom_order_notification,
+    send_contact_message_notification
+)
+
 from .models import (
     Category, Material, Product, CustomOrder,
     ContactMessage, Newsletter, Testimonial,
@@ -84,7 +90,13 @@ class CustomOrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        custom_order = serializer.save()
+        
+        # Send email notifications
+        try:
+            send_custom_order_notification(custom_order)
+        except Exception as email_error:
+            print(f"Failed to send custom order notification: {email_error}")
         
         return Response({
             'message': 'Custom order request submitted successfully! We will contact you within 24-48 hours.',
@@ -99,6 +111,22 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
     queryset = ContactMessage.objects.all()
     serializer_class = ContactMessageSerializer
     http_method_names = ['post', 'get']  # Only allow POST to create
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        contact_message = serializer.save()
+        
+        # Send email notifications
+        try:
+            send_contact_message_notification(contact_message)
+        except Exception as email_error:
+            print(f"Failed to send contact message notification: {email_error}")
+        
+        return Response({
+            'message': 'Thank you for contacting us! We will get back to you soon.',
+            'id': serializer.data['id']
+        }, status=status.HTTP_201_CREATED)
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -302,6 +330,12 @@ def verify_payment(request):
                 if item.product:
                     item.product.stock_quantity -= item.quantity
                     item.product.save()
+            
+            # Send order confirmation emails
+            try:
+                send_order_confirmation_email(order)
+            except Exception as email_error:
+                print(f"Failed to send order confirmation email: {email_error}")
             
             return Response({
                 'message': 'Payment verified successfully',
