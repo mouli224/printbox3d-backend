@@ -224,6 +224,44 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@printbox3d.com')
 
+# SSL settings for email
+import ssl
+EMAIL_SSL_CERTFILE = None
+EMAIL_SSL_KEYFILE = None
+# Disable SSL certificate verification (for development/Hostinger)
+EMAIL_USE_SSL_CERT_VERIFICATION = False
+
+# Create custom SSL context that doesn't verify certificates
+import smtplib
+from django.core.mail.backends.smtp import EmailBackend as DefaultEmailBackend
+
+class CustomEmailBackend(DefaultEmailBackend):
+    def open(self):
+        if self.connection:
+            return False
+        
+        connection_params = {'timeout': self.timeout} if self.timeout is not None else {}
+        try:
+            self.connection = smtplib.SMTP(self.host, self.port, **connection_params)
+            
+            if self.use_tls:
+                # Create SSL context that doesn't verify certificates
+                import ssl
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                self.connection.starttls(context=context)
+            
+            if self.username and self.password:
+                self.connection.login(self.username, self.password)
+            return True
+        except Exception:
+            if not self.fail_silently:
+                raise
+
+# Use custom backend
+EMAIL_BACKEND = 'printbox_backend.settings.CustomEmailBackend'
+
 # Razorpay Configuration
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')

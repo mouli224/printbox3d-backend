@@ -224,6 +224,7 @@ def create_order(request):
     
     # Create order
     order = Order.objects.create(
+        user=request.user if request.user.is_authenticated else None,
         customer_name=data['customer_name'],
         customer_email=data['customer_email'],
         customer_phone=data['customer_phone'],
@@ -405,3 +406,23 @@ def payment_failed(request):
         }, status=status.HTTP_200_OK)
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_orders(request):
+    """
+    Get all orders for the authenticated user
+    Returns orders linked to user account + orders with matching email
+    """
+    # Get orders linked to user account
+    user_orders = Order.objects.filter(user=request.user)
+    
+    # Also get orders with the same email (for guest checkouts before login)
+    email_orders = Order.objects.filter(customer_email=request.user.email)
+    
+    # Combine and remove duplicates, order by creation date
+    all_orders = (user_orders | email_orders).distinct().order_by('-created_at')
+    
+    serializer = OrderSerializer(all_orders, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

@@ -5,7 +5,8 @@ from .views import (
     CategoryViewSet, MaterialViewSet, ProductViewSet,
     CustomOrderViewSet, ContactMessageViewSet,
     NewsletterViewSet, TestimonialViewSet,
-    create_order, verify_payment, get_order_status, payment_failed
+    create_order, verify_payment, get_order_status, payment_failed,
+    get_user_orders
 )
 from .auth_views import register, login, logout, get_user_profile, update_user_profile
 
@@ -34,4 +35,7 @@ urlpatterns = [
     path('orders/verify-payment/', verify_payment, name='verify_payment'),
     path('orders/<str:order_id>/', get_order_status, name='order_status'),
     path('orders/payment-failed/', payment_failed, name='payment_failed'),
+    
+    # User orders
+    path('orders/user/me/', get_user_orders, name='user_orders'),
 ]

@@ -20,6 +20,9 @@ db.sqlite3-journal
 
 # Environment variables
 .env
+*.csv
+RAZORPAY_CREDENTIALS.txt
+rzp-key.csv
 
 # IDE
 .vscode/

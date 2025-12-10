@@ -45,6 +45,8 @@ class Product(models.Model):
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    original_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=[MinValueValidator(0)], help_text="Original price before discount")
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], help_text="Discount percentage (0-100)")
     
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     material = models.ForeignKey(Material, on_delete=models.SET_NULL, null=True, related_name='products')
@@ -219,6 +221,15 @@ class Order(models.Model):
     
     # Order identification
     order_id = models.CharField(max_length=100, unique=True, editable=False)
+    
+    # User association (optional - for logged in users)
+    user = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders'
+    )
     
     # Customer information
     customer_name = models.CharField(max_length=200)

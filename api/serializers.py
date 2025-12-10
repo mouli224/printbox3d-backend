@@ -31,8 +31,9 @@ class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'price', 'image', 'frontend_image', 'category_name',
-            'material_name', 'is_featured', 'is_available', 'stock_quantity'
+            'id', 'name', 'slug', 'price', 'original_price', 'discount_percentage', 
+            'image', 'frontend_image', 'category_name', 'material_name', 
+            'is_featured', 'is_available', 'stock_quantity'
         ]
 
 
@@ -44,10 +45,11 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'description', 'price', 'category', 'material',
-            'color', 'dimensions', 'weight', 'image', 'image_2', 'image_3',
-            'frontend_image', 'stock_quantity', 'is_available', 'is_featured', 
-            'meta_description', 'created_at', 'updated_at'
+            'id', 'name', 'slug', 'description', 'price', 'original_price', 
+            'discount_percentage', 'category', 'material', 'color', 'dimensions', 
+            'weight', 'image', 'image_2', 'image_3', 'frontend_image', 
+            'stock_quantity', 'is_available', 'is_featured', 'meta_description', 
+            'created_at', 'updated_at'
         ]
 
 
@@ -106,9 +108,11 @@ class TestimonialSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     """Serializer for order items"""
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
+    
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'product_price', 'product_image', 'quantity', 'subtotal']
+        fields = ['id', 'product', 'product_name', 'product_price', 'product_image', 'product_slug', 'quantity', 'subtotal']
         read_only_fields = ['id']
 
 
