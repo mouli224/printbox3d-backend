@@ -28,6 +28,9 @@ from .serializers import (
     OrderSerializer, PaymentSerializer, CreateOrderSerializer,
     PaymentVerificationSerializer
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -174,8 +177,13 @@ class TestimonialViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # Initialize Razorpay client
-razorpay_client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-
+def get_razorpay_client():
+    """Get Razorpay client with error handling"""
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        logger.error("Razorpay credentials not configured in environment variables")
+        raise ValueError("Razorpay credentials not configured")
+    
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -244,6 +252,9 @@ def create_order(request):
     
     # Create Razorpay order
     try:
+        # Get Razorpay client
+        razorpay_client = get_razorpay_client()
+        
         razorpay_order = razorpay_client.order.create({
             'amount': int(total_amount * 100),  # Amount in paise
             'currency': 'INR',
@@ -275,9 +286,19 @@ def create_order(request):
             'customer_phone': order.customer_phone
         }, status=status.HTTP_201_CREATED)
         
+    except ValueError as ve:
+        # Razorpay credentials not configured
+        order.delete()
+        logger.error(f"Razorpay configuration error: {str(ve)}")
+        return Response({
+            'error': 'Payment gateway not configured',
+            'details': 'Please contact support'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     except Exception as e:
         # Delete order if Razorpay order creation fails
         order.delete()
+        logger.error(f"Razorpay order creation failed: {str(e)}", exc_info=True)
         return Response({
             'error': 'Failed to create payment order',
             'details': str(e)
