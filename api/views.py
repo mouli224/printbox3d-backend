@@ -311,16 +311,22 @@ def verify_payment(request):
     """
     Verify Razorpay payment signature and update order status
     """
+    logger.info(f"Payment verification request received: {request.data}")
+    
     serializer = PaymentVerificationSerializer(data=request.data)
     
     if not serializer.is_valid():
+        logger.error(f"Payment verification serializer errors: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     data = serializer.validated_data
+    logger.info(f"Validated data: order_id={data.get('order_id')}")
     
     try:
         order = Order.objects.get(order_id=data['order_id'])
+        logger.info(f"Order found: {order.order_id}, status: {order.status}")
     except Order.DoesNotExist:
+        logger.error(f"Order not found: {data['order_id']}")
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
     
     # Verify signature
@@ -332,13 +338,20 @@ def verify_payment(request):
             hashlib.sha256
         ).hexdigest()
         
+        logger.info(f"Generated signature: {generated_signature}")
+        logger.info(f"Received signature: {data['razorpay_signature']}")
+        
         if generated_signature == data['razorpay_signature']:
             # Payment verified successfully
+            logger.info("Payment signature verified successfully")
+            
             order.razorpay_payment_id = data['razorpay_payment_id']
             order.razorpay_signature = data['razorpay_signature']
             order.status = 'PAID'
             order.payment_status = 'CAPTURED'
             order.save()
+            
+            logger.info(f"Order updated to PAID: {order.order_id}")
             
             # Update payment record
             payment = order.payment
@@ -353,19 +366,26 @@ def verify_payment(request):
                     item.product.stock_quantity -= item.quantity
                     item.product.save()
             
+            logger.info("Stock updated for all items")
+            
             # Send order confirmation emails
             try:
                 send_order_confirmation_email(order)
+                logger.info("Order confirmation email sent")
             except Exception as email_error:
-                print(f"Failed to send order confirmation email: {email_error}")
+                logger.error(f"Failed to send order confirmation email: {email_error}")
+
             
             return Response({
+                'success': True,
                 'message': 'Payment verified successfully',
                 'order_id': order.order_id,
                 'status': 'PAID'
             }, status=status.HTTP_200_OK)
         else:
             # Signature verification failed
+            logger.warning(f"Signature mismatch for order {order.order_id}")
+            
             order.status = 'FAILED'
             order.payment_status = 'FAILED'
             order.save()
@@ -376,11 +396,14 @@ def verify_payment(request):
             payment.save()
             
             return Response({
+                'success': False,
                 'error': 'Payment verification failed'
             }, status=status.HTTP_400_BAD_REQUEST)
             
     except Exception as e:
+        logger.error(f"Payment verification exception: {str(e)}", exc_info=True)
         return Response({
+            'success': False,
             'error': 'Payment verification error',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
