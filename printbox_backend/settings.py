@@ -162,7 +162,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS Settings - TEMPORARY: Allow all origins for testing
 # TODO: Restrict this after confirming payment works
-CORS_ALLOW_ALL_ORIGINS = True  # TEMPORARY FIX
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development and production
 
 # Keep these for when we disable CORS_ALLOW_ALL_ORIGINS
 CORS_ALLOWED_ORIGINS = config(
@@ -172,6 +172,7 @@ CORS_ALLOWED_ORIGINS = config(
 )
 
 # Additional CORS settings for proper header handling
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -182,6 +183,16 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+]
+
+# Ensure all HTTP methods are allowed
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 CORS_EXPOSE_HEADERS = [
