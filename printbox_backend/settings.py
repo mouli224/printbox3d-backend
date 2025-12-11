@@ -160,14 +160,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# CORS Settings
-# CORS_ALLOWED_ORIGINS = config(
-#     'CORS_ALLOWED_ORIGINS',
-#     default='http://localhost:3000',
-#     cast=Csv()
-# )
+# CORS Settings - TEMPORARY: Allow all origins for testing
+# TODO: Restrict this after confirming payment works
+CORS_ALLOW_ALL_ORIGINS = True  # TEMPORARY FIX
 
-# Use explicit allowed origins from environment or defaults
+# Keep these for when we disable CORS_ALLOW_ALL_ORIGINS
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
     default='http://localhost:3000,https://printbox3d.com,https://www.printbox3d.com,https://printbox3d.in,https://www.printbox3d.in',
@@ -208,8 +205,7 @@ CSRF_TRUSTED_ORIGINS = config(
     cast=Csv()
 )
 
-# Allow Railway backend to be accessed (for testing)
-CORS_ALLOW_ALL_ORIGINS = False
+# Allow credentials
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
