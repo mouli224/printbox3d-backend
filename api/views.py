@@ -1,3 +1,15 @@
+"""
+API Views for PrintBox3D E-commerce Platform
+
+This module contains all API endpoints for the PrintBox3D application including:
+- Product catalog management (categories, materials, products)
+- Order creation and payment processing (Razorpay integration)
+- Custom order requests
+- Contact form submissions
+- Newsletter subscriptions
+- Customer testimonials
+"""
+
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -8,6 +20,7 @@ from django.conf import settings
 import razorpay
 import hmac
 import hashlib
+import logging
 
 from .email_utils import (
     send_order_confirmation_email,
@@ -28,14 +41,20 @@ from .serializers import (
     OrderSerializer, PaymentSerializer, CreateOrderSerializer,
     PaymentVerificationSerializer
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for viewing categories
+    API endpoint for product categories.
+    
+    Provides read-only access to product categories.
+    Categories are used to organize products (e.g., Home Decor, Accessories).
+    
+    Endpoints:
+        GET /api/categories/ - List all categories
+        GET /api/categories/{slug}/ - Get category by slug
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -44,7 +63,14 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for viewing materials
+    API endpoint for 3D printing materials.
+    
+    Provides read-only access to available printing materials.
+    Materials define what products are made from (e.g., PLA, ABS, Resin).
+    
+    Endpoints:
+        GET /api/materials/ - List all materials
+        GET /api/materials/{id}/ - Get material by ID
     """
     queryset = Material.objects.all()
     serializer_class = MaterialSerializer
@@ -52,7 +78,28 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for viewing products with filtering and search
+    API endpoint for products with filtering and search capabilities.
+    
+    Provides read-only access to available products with advanced filtering,
+    searching, and sorting options.
+    
+    Endpoints:
+        GET /api/products/ - List all products
+        GET /api/products/{slug}/ - Get product details by slug
+        GET /api/products/featured/ - Get featured products (max 6)
+        GET /api/products/best_sellers/ - Get best-selling products (max 6)
+    
+    Query Parameters:
+        category__slug - Filter by category slug
+        material__name - Filter by material name
+        is_featured - Filter featured products (true/false)
+        search - Search in name and description
+        ordering - Sort by: price, name, created_at (prefix with - for descending)
+    
+    Examples:
+        /api/products/?category__slug=home-decor
+        /api/products/?search=keychain&ordering=-price
+        /api/products/?is_featured=true
     """
     queryset = Product.objects.filter(is_available=True)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -63,20 +110,29 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
     
     def get_serializer_class(self):
+        """Use detailed serializer for single product, list serializer for multiple."""
         if self.action == 'retrieve':
             return ProductDetailSerializer
         return ProductListSerializer
     
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        """Get featured products"""
+        """
+        Get featured products.
+        
+        Returns up to 6 featured products for homepage display.
+        """
         featured_products = self.queryset.filter(is_featured=True)[:6]
         serializer = self.get_serializer(featured_products, many=True)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
     def best_sellers(self, request):
-        """Get best selling products (placeholder - can be enhanced with order data)"""
+        """
+        Get best-selling products.
+        
+        Currently returns featured products. Can be enhanced with actual sales data.
+        """
         best_sellers = self.queryset.filter(is_featured=True)[:6]
         serializer = self.get_serializer(best_sellers, many=True)
         return Response(serializer.data)
@@ -84,22 +140,36 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 
 class CustomOrderViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for custom order submissions
+    API endpoint for custom order requests.
+    
+    Allows customers to submit custom 3D printing requests with file uploads
+    and specifications. Sends email notifications to admin.
+    
+    Endpoints:
+        POST /api/custom-orders/ - Submit custom order request
+    
+    Request Body:
+        name - Customer name
+        email - Customer email
+        phone - Customer phone number
+        description - Order description
+        file - 3D model file (optional)
     """
     queryset = CustomOrder.objects.all()
     serializer_class = CustomOrderSerializer
-    http_method_names = ['post', 'get']  # Only allow POST to create, GET to list (admin only)
+    http_method_names = ['post', 'get']
     
     def create(self, request, *args, **kwargs):
+        """Create custom order and send notification email."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         custom_order = serializer.save()
         
-        # Send email notifications
+        # Send email notification to admin
         try:
             send_custom_order_notification(custom_order)
         except Exception as email_error:
-            print(f"Failed to send custom order notification: {email_error}")
+            logger.warning(f"Failed to send custom order notification: {email_error}")
         
         return Response({
             'message': 'Custom order request submitted successfully! We will contact you within 24-48 hours.',
@@ -109,32 +179,35 @@ class CustomOrderViewSet(viewsets.ModelViewSet):
 
 class ContactMessageViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for contact form submissions
+    API endpoint for contact form submissions.
+    
+    Allows visitors to send messages through the contact form.
+    Sends email notifications to admin.
+    
+    Endpoints:
+        POST /api/contact/ - Submit contact message
+    
+    Request Body:
+        name - Sender name
+        email - Sender email
+        subject - Message subject
+        message - Message content
     """
     queryset = ContactMessage.objects.all()
     serializer_class = ContactMessageSerializer
-    http_method_names = ['post', 'get']  # Only allow POST to create
+    http_method_names = ['post', 'get']
     
     def create(self, request, *args, **kwargs):
+        """Create contact message and send notification email."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         contact_message = serializer.save()
         
-        # Send email notifications
+        # Send email notification to admin
         try:
             send_contact_message_notification(contact_message)
         except Exception as email_error:
-            print(f"Failed to send contact message notification: {email_error}")
-        
-        return Response({
-            'message': 'Thank you for contacting us! We will get back to you soon.',
-            'id': serializer.data['id']
-        }, status=status.HTTP_201_CREATED)
-    
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+            logger.warning(f"Failed to send contact message notification: {email_error}")
         
         return Response({
             'message': 'Thank you for contacting us! We will respond within 24 hours.',
@@ -144,13 +217,22 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
 
 class NewsletterViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for newsletter subscriptions
+    API endpoint for newsletter subscriptions.
+    
+    Allows visitors to subscribe to email newsletter.
+    
+    Endpoints:
+        POST /api/newsletter/ - Subscribe to newsletter
+    
+    Request Body:
+        email - Subscriber email address
     """
     queryset = Newsletter.objects.filter(is_active=True)
     serializer_class = NewsletterSerializer
-    http_method_names = ['post']  # Only allow POST to subscribe
+    http_method_names = ['post']
     
     def create(self, request, *args, **kwargs):
+        """Subscribe user to newsletter."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -163,22 +245,39 @@ class NewsletterViewSet(viewsets.ModelViewSet):
 
 class TestimonialViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for viewing testimonials
+    API endpoint for customer testimonials.
+    
+    Provides read-only access to customer reviews and testimonials.
+    
+    Endpoints:
+        GET /api/testimonials/ - List all testimonials
+        GET /api/testimonials/featured/ - Get featured testimonials (max 6)
     """
     queryset = Testimonial.objects.all()
     serializer_class = TestimonialSerializer
     
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        """Get featured testimonials"""
+        """Get featured testimonials for homepage display."""
         featured = self.queryset.filter(is_featured=True)[:6]
         serializer = self.get_serializer(featured, many=True)
         return Response(serializer.data)
 
 
-# Initialize Razorpay client
+# ============================================================================
+# PAYMENT & ORDER PROCESSING
+# ============================================================================
+
 def get_razorpay_client():
-    """Get Razorpay client with error handling"""
+    """
+    Initialize and return Razorpay client.
+    
+    Returns:
+        razorpay.Client: Configured Razorpay client instance
+        
+    Raises:
+        ValueError: If Razorpay credentials are not configured
+    """
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         logger.error("Razorpay credentials not configured in environment variables")
         raise ValueError("Razorpay credentials not configured")
@@ -189,7 +288,44 @@ def get_razorpay_client():
 @permission_classes([AllowAny])
 def create_order(request):
     """
-    Create a new order and initiate Razorpay payment
+    Create new order and initiate Razorpay payment.
+    
+    This endpoint:
+    1. Validates order data and cart items
+    2. Checks product availability and stock
+    3. Creates Order and OrderItem records
+    4. Initializes Razorpay payment order
+    5. Returns payment details for frontend
+    
+    Request Body:
+        customer_name - Customer full name
+        customer_email - Customer email
+        customer_phone - Customer phone number
+        shipping_address - Delivery address
+        shipping_city - Delivery city
+        shipping_state - Delivery state
+        shipping_pincode - Delivery PIN code
+        items - Array of {product_id, quantity}
+    
+    Returns:
+        order_id - Internal order ID
+        razorpay_order_id - Razorpay order ID for payment
+        razorpay_key_id - Razorpay public key
+        amount - Payment amount in paise (₹ * 100)
+        currency - Payment currency (INR)
+        customer_* - Customer details for payment form
+    
+    Example Response:
+        {
+            "order_id": "ORD20251211123456ABCD",
+            "razorpay_order_id": "order_XXX",
+            "razorpay_key_id": "rzp_live_XXX",
+            "amount": 29900,
+            "currency": "INR",
+            "customer_name": "John Doe",
+            "customer_email": "john@example.com",
+            "customer_phone": "9876543210"
+        }
     """
     serializer = CreateOrderSerializer(data=request.data)
     

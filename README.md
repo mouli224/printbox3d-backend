@@ -1,434 +1,604 @@
-# PrintBox3D Backend API
+# PrintBox3D Backend
 
-Django REST API backend for PrintBox3D - A 3D printing e-commerce website.
+Django REST API for PrintBox3D - A 3D printing e-commerce platform with Razorpay payment integration.
 
-## 🚀 Features
+---
 
-- **Product Management**: CRUD operations for products, categories, and materials
-- **Custom Orders**: Handle custom 3D printing requests with file uploads
-- **Contact Forms**: Contact message and newsletter subscription handling
-- **Testimonials**: Customer testimonials management
-- **JWT Authentication**: Secure user registration and login with token-based auth
-- **Admin Panel**: Full-featured Django admin for content management
-- **REST API**: Complete RESTful API with DRF
-- **Supabase PostgreSQL**: Production-ready database with connection pooling
-- **Railway Ready**: Configured for easy deployment to Railway
+## 📋 Table of Contents
 
-## 📋 Requirements
+- [Quick Start](#-quick-start)
+- [Project Structure](#-project-structure)
+- [Features](#-features)
+- [Environment Setup](#-environment-setup)
+- [Database Configuration](#-database-configuration)
+- [API Endpoints](#-api-endpoints)
+- [Payment Integration](#-payment-integration)
+- [Deployment](#-deployment)
+- [Utility Scripts](#-utility-scripts)
+- [Troubleshooting](#-troubleshooting)
 
-- Python 3.11+
-- PostgreSQL (Supabase for production)
-- SQLite (for local development)
-- Node.js (optional, for Railway CLI)
+---
 
-## 🛠️ Local Development Setup
+## 🚀 Quick Start
 
-### 1. Clone the repository
+### Local Development Setup
 
 ```bash
-git clone <your-repo-url>
-cd PrintBox-Backend
-```
+# Clone repository
+git clone https://github.com/mouli224/printbox3d-backend.git
+cd printbox3d-backend
 
-### 2. Create virtual environment
+# Create virtual environment
+python -m venv .venv
 
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
-### 3. Install dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Environment Configuration
-
-Create a `.env` file in the root directory:
-
-```env
-SECRET_KEY=your-secret-key-here
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://printbox3d.com
-```
-
-### 5. Database Setup
-
-**Option A: Local Development (SQLite)**
-```bash
-# Leave DATABASE_URL empty in .env file
-python manage.py migrate
-python manage.py createsuperuser
-```
-
-**Option B: Supabase PostgreSQL**
-```bash
-# Update .env with your Supabase credentials
-DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.supabase.com:6543/postgres
-DIRECT_DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.supabase.com:5432/postgres
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your credentials (see Environment Setup section)
 
 # Run migrations
 python manage.py migrate
+
+# Create superuser (admin account)
 python manage.py createsuperuser
-```
 
-See **[SUPABASE_RAILWAY_DEPLOYMENT.md](./SUPABASE_RAILWAY_DEPLOYMENT.md)** for detailed setup instructions.
+# Add sample products (optional)
+python scripts/add_products.py
 
-### 6. Run development server
-
-```bash
+# Start development server
 python manage.py runserver
 ```
 
-The API will be available at `http://localhost:8000/api/`
+Visit:
+- **API**: http://localhost:8000/api/
+- **Admin**: http://localhost:8000/admin/
 
-Admin panel: `http://localhost:8000/admin/`
-
-## 📡 API Endpoints
-
-### Products
-
-- `GET /api/products/` - List all products
-- `GET /api/products/{slug}/` - Get product detail
-- `GET /api/products/featured/` - Get featured products
-- `GET /api/products/best_sellers/` - Get best sellers
-
-**Query Parameters:**
-- `category__slug` - Filter by category slug
-- `material__name` - Filter by material name
-- `is_featured` - Filter featured products
-- `search` - Search in name and description
-- `ordering` - Sort by: price, name, created_at
-
-### Categories
-
-- `GET /api/categories/` - List all categories
-- `GET /api/categories/{slug}/` - Get category detail
-
-### Materials
-
-- `GET /api/materials/` - List all materials
-- `GET /api/materials/{id}/` - Get material detail
-
-### Custom Orders
-
-- `POST /api/custom-orders/` - Submit a custom order request
-
-**Request Body:**
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "phone": "+91 1234567890",
-  "material": "PLA",
-  "color": "Blue",
-  "description": "I need a custom trophy...",
-  "quantity": 1,
-  "budget": "1000-2000",
-  "design_file": "<file upload>"
-}
-```
-
-### Contact Messages
-
-- `POST /api/contact/` - Submit a contact message
-
-**Request Body:**
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "subject": "Product Inquiry",
-  "message": "I would like to know more about..."
-}
-```
-
-### Newsletter
-
-- `POST /api/newsletter/` - Subscribe to newsletter
-
-**Request Body:**
-```json
-{
-  "email": "john@example.com"
-}
-```
-
-### Testimonials
-
-- `GET /api/testimonials/` - List all testimonials
-- `GET /api/testimonials/featured/` - Get featured testimonials
-
-### Authentication
-
-- `POST /api/auth/register/` - Register new user
-- `POST /api/auth/login/` - Login user (returns JWT tokens)
-- `POST /api/auth/token/refresh/` - Refresh access token
-- `GET /api/auth/profile/` - Get user profile (requires auth)
-- `PUT /api/auth/profile/update/` - Update user profile (requires auth)
-- `POST /api/auth/logout/` - Logout user
-
-See **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** for complete API reference.
-
-## 🔐 Admin Panel
-
-Access the admin panel at `http://localhost:8000/admin/`
-
-Use the superuser credentials you created during setup.
-
-**Admin Features:**
-- Manage products, categories, and materials
-- Review and update custom order status
-- View contact messages and newsletter subscriptions
-- Manage testimonials
-
-## 🚂 Deployment
-
-### Supabase + Railway (Recommended)
-
-This project is configured to use **Supabase PostgreSQL** with **Railway** for hosting.
-
-**Quick Deploy:**
-1. Create Supabase project and get database URLs
-2. Deploy to Railway from GitHub
-3. Set environment variables in Railway
-4. Your API is live!
-
-**📖 Complete deployment guide**: See **[SUPABASE_RAILWAY_DEPLOYMENT.md](./SUPABASE_RAILWAY_DEPLOYMENT.md)**
-
-### Alternative: Railway with Built-in PostgreSQL
-
-If you prefer Railway's built-in database:
-
-1. **Install Railway CLI**
-```bash
-npm install -g @railway/cli
-```
-
-2. **Login and Deploy**
-```bash
-railway login
-railway init
-```
-
-3. **Add PostgreSQL**
-- In Railway dashboard: New → Database → PostgreSQL
-- Railway automatically sets `DATABASE_URL`
-
-4. **Deploy**
-```bash
-railway up
-```
-
-### 5. Set environment variables
-
-In Railway dashboard, add these variables:
-
-```
-SECRET_KEY=<generate-a-secret-key>
-DEBUG=False
-ALLOWED_HOSTS=your-railway-domain.railway.app
-CORS_ALLOWED_ORIGINS=https://printbox3d.com,https://www.printbox3d.com
-DATABASE_URL=<automatically-set-by-railway>
-```
-
-### 6. Deploy
-
-```bash
-railway up
-```
-
-### 7. Run migrations on Railway
-
-```bash
-railway run python manage.py migrate
-railway run python manage.py createsuperuser
-```
+---
 
 ## 📁 Project Structure
 
 ```
-PrintBox-Backend/
-├── printbox_backend/          # Django project settings
-│   ├── settings.py           # Main settings
+printbox_backend/
+├── api/                      # Main Django app
+│   ├── models.py            # Database models (Product, Order, Payment, etc.)
+│   ├── views.py             # API endpoints and business logic
+│   ├── serializers.py       # Data serialization for API responses
+│   ├── urls.py              # URL routing
+│   ├── auth_views.py        # JWT authentication endpoints
+│   ├── email_utils.py       # Email notification functions
+│   └── migrations/          # Database migrations
+├── printbox_backend/         # Django project settings
+│   ├── settings.py          # Main configuration
 │   ├── urls.py              # Root URL configuration
-│   ├── wsgi.py              # WSGI configuration
-│   └── asgi.py              # ASGI configuration
-├── api/                     # Main API app
-│   ├── models.py           # Database models
-│   ├── serializers.py      # DRF serializers
-│   ├── views.py            # API views
-│   ├── urls.py             # API URL routing
-│   └── admin.py            # Admin configuration
-├── media/                  # User uploaded files
-├── staticfiles/           # Static files for production
-├── requirements.txt       # Python dependencies
-├── Procfile              # Railway/Heroku configuration
-├── railway.json          # Railway-specific config
-├── runtime.txt          # Python version
-├── .env.example         # Environment variables template
-├── .gitignore          # Git ignore rules
-├── manage.py           # Django management script
-└── README.md          # This file
+│   └── wsgi.py              # WSGI application
+├── scripts/                  # Utility scripts
+│   ├── add_products.py      # Populate product catalog
+│   ├── add_test_product.py  # Add ₹1 test product
+│   ├── check_env.py         # Verify environment variables
+│   └── generate_secret_key.py # Generate Django SECRET_KEY
+├── media/                    # User-uploaded files
+├── docs/                     # Additional documentation
+├── .env                      # Environment variables (not in git)
+├── .env.example              # Environment template
+├── requirements.txt          # Python dependencies
+├── manage.py                 # Django management script
+├── Procfile                  # Railway deployment config
+└── README.md                 # This file
 ```
 
-## 🗄️ Database Models
+---
 
-### Product
-- name, slug, description, price
-- category, material
-- color, dimensions, weight
-- images (up to 3)
-- stock_quantity, is_available, is_featured
+## 🔑 Features
 
-### Category
-- name, slug, description, image
+### Product Management
+- Product catalog with categories and materials
+- Product search and filtering
+- Featured products
+- Stock management
+- Image uploads
 
-### Material
-- name, description, properties
+### E-commerce
+- Shopping cart (session-based and user-linked)
+- Order creation and tracking
+- Order history for authenticated users
+- Custom order requests (file uploads)
 
-### CustomOrder
-- Customer info: name, email, phone
-- Order details: material, color, description, quantity, budget
-- design_file (optional)
-- status (PENDING, REVIEWING, QUOTED, APPROVED, IN_PRODUCTION, COMPLETED, CANCELLED)
+### Payment Processing
+- **Razorpay** payment gateway integration
+- Secure payment signature verification
+- Automatic stock updates after payment
+- Order confirmation emails
 
-### ContactMessage
-- name, email, subject, message
-- is_read, admin_notes
+### User Management
+- JWT-based authentication
+- User registration and login
+- Password reset functionality
+- User profile management
 
-### Newsletter
-- email, is_active, subscribed_at
+### Additional Features
+- Contact form with email notifications
+- Newsletter subscriptions
+- Customer testimonials
+- Admin dashboard (Django Admin)
 
-### Testimonial
-- name, company, rating, message, image
-- is_featured
+---
 
-## 🔧 Configuration
+## 🛠️ Environment Setup
 
-### CORS Settings
+### Required Environment Variables
 
-Update `CORS_ALLOWED_ORIGINS` in `.env`:
+Create `.env` file in project root with these variables:
 
 ```env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://printbox3d.com
+# ==================== DJANGO CORE ====================
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Generate SECRET_KEY:
+# python scripts/generate_secret_key.py
+
+# ==================== DATABASE ====================
+# For local development (uses SQLite): leave empty
+DATABASE_URL=
+
+# For production (Supabase PostgreSQL):
+# DATABASE_URL=postgresql://user:password@host:6543/postgres
+# DIRECT_DATABASE_URL=postgresql://user:password@host:5432/postgres
+
+# ==================== PAYMENT GATEWAY ====================
+# Razorpay LIVE credentials (production)
+RAZORPAY_KEY_ID=rzp_live_xxx
+RAZORPAY_KEY_SECRET=xxx
+
+# Razorpay TEST credentials (development)
+# RAZORPAY_KEY_ID=rzp_test_xxx
+# RAZORPAY_KEY_SECRET=xxx
+
+# ==================== CORS & SECURITY ====================
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://www.printbox3d.com
+CSRF_TRUSTED_ORIGINS=http://localhost:8000,https://your-backend-domain.com
+
+# ==================== EMAIL (Optional) ====================
+EMAIL_HOST=smtp.hostinger.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=info@printbox3d.com
+EMAIL_HOST_PASSWORD=your-email-password
+DEFAULT_FROM_EMAIL=info@printbox3d.com
 ```
 
-### Media Files
+### Environment Variables Explained
 
-Media files are stored in `/media/` directory:
-- Products: `/media/products/`
-- Categories: `/media/categories/`
-- Custom Orders: `/media/custom_orders/`
-- Testimonials: `/media/testimonials/`
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SECRET_KEY` | ✅ Yes | Django secret key (generate with `scripts/generate_secret_key.py`) |
+| `DEBUG` | No | `True` for development, **`False`** for production |
+| `ALLOWED_HOSTS` | No | Comma-separated domains (e.g., `localhost,yourdomain.com`) |
+| `DATABASE_URL` | No | PostgreSQL URL (uses SQLite if not set) |
+| `RAZORPAY_KEY_ID` | ✅ Yes | Razorpay API key from dashboard |
+| `RAZORPAY_KEY_SECRET` | ✅ Yes | Razorpay API secret (keep secure!) |
+| `CORS_ALLOWED_ORIGINS` | No | Frontend URLs for CORS (comma-separated) |
+| `EMAIL_HOST` | No | SMTP server for email notifications |
 
-For production, consider using cloud storage (AWS S3, Cloudinary, etc.)
+---
 
-## 📝 Sample Data
+## 🗄️ Database Configuration
 
-To populate the database with sample data:
+### Local Development (SQLite)
+
+Default setup uses SQLite - no configuration needed:
 
 ```bash
-python manage.py shell
+python manage.py migrate
 ```
 
-Then run:
+Database file: `db.sqlite3`
 
-```python
-from api.models import Category, Material, Product
+### Production (PostgreSQL - Supabase)
 
-# Create categories
-category = Category.objects.create(
-    name="Home Decor",
-    description="Decorative items for your home"
-)
+1. **Create Supabase Project**: https://supabase.com
+2. **Get Connection Strings** from Supabase dashboard:
+   - Pooled connection (port 6543) - for app
+   - Direct connection (port 5432) - for migrations
 
-# Create materials
-material = Material.objects.create(
-    name="PLA",
-    description="Standard 3D printing material"
-)
-
-# Create products
-Product.objects.create(
-    name="Geometric Planter",
-    description="Modern planter for small plants",
-    price=899,
-    category=category,
-    material=material,
-    is_available=True,
-    is_featured=True,
-    stock_quantity=10
-)
+3. **Update `.env`**:
+```env
+DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:6543/postgres
+DIRECT_DATABASE_URL=postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:5432/postgres
 ```
+
+4. **Run Migrations**:
+```bash
+python manage.py migrate
+```
+
+### Database URL Formats
+
+**Supabase Pooled** (for runtime):
+```
+postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:6543/postgres
+```
+
+**Supabase Direct** (for migrations):
+```
+postgresql://postgres.xxx:PASSWORD@xxx.pooler.supabase.com:5432/postgres
+```
+
+**Railway PostgreSQL**:
+```
+postgresql://postgres:PASSWORD@HOST:5432/railway
+```
+
+---
+
+## 📡 API Endpoints
+
+### Authentication
+```
+POST /api/auth/register/          - Register new user
+POST /api/auth/login/             - Login (get JWT tokens)
+POST /api/auth/refresh/           - Refresh access token
+POST /api/auth/logout/            - Logout (blacklist token)
+```
+
+### Products
+```
+GET  /api/products/               - List all products (with filters)
+GET  /api/products/{slug}/        - Get product details
+GET  /api/products/featured/      - Get featured products
+GET  /api/products/best_sellers/  - Get best sellers
+```
+
+**Query Parameters**:
+- `category__slug` - Filter by category
+- `material__name` - Filter by material
+- `search` - Search in name/description
+- `ordering` - Sort by: `price`, `-price`, `name`, `-created_at`
+
+**Example**:
+```
+GET /api/products/?category__slug=home-decor&ordering=-price
+```
+
+### Categories & Materials
+```
+GET /api/categories/              - List all categories
+GET /api/materials/               - List all materials
+```
+
+### Orders
+```
+POST /api/orders/create/          - Create order & initiate payment
+POST /api/orders/verify-payment/  - Verify Razorpay payment
+GET  /api/orders/{order_id}/      - Get order status
+GET  /api/orders/user/            - Get user's order history (auth required)
+POST /api/orders/payment-failed/  - Record payment failure
+```
+
+### Custom Orders
+```
+POST /api/custom-orders/          - Submit custom order request
+```
+
+### Contact & Newsletter
+```
+POST /api/contact/                - Submit contact form
+POST /api/newsletter/             - Subscribe to newsletter
+```
+
+### Testimonials
+```
+GET /api/testimonials/            - List testimonials
+GET /api/testimonials/featured/   - Get featured testimonials
+```
+
+---
+
+## 💳 Payment Integration (Razorpay)
+
+### Setup
+
+1. **Get Razorpay Credentials**:
+   - Sign up at https://razorpay.com
+   - Go to Dashboard → Settings → API Keys
+   - Generate Live/Test keys
+
+2. **Add to `.env`**:
+```env
+RAZORPAY_KEY_ID=rzp_live_xxxxx
+RAZORPAY_KEY_SECRET=xxxxx
+```
+
+3. **Frontend Integration**:
+   - Backend provides `razorpay_key_id` in `/api/orders/create/` response
+   - Frontend loads Razorpay checkout script
+   - After payment, verify signature with `/api/orders/verify-payment/`
+
+### Payment Flow
+
+```
+1. Customer adds items to cart
+2. Frontend calls POST /api/orders/create/
+   - Backend creates Order & Razorpay order
+   - Returns razorpay_order_id, razorpay_key_id, amount
+3. Frontend opens Razorpay checkout modal
+4. Customer completes payment
+5. Razorpay returns payment_id, order_id, signature
+6. Frontend calls POST /api/orders/verify-payment/
+   - Backend verifies HMAC signature
+   - Updates order status to PAID
+   - Reduces product stock
+   - Sends confirmation email
+7. Frontend redirects to success page
+```
+
+### Testing Payments
+
+Use test product (₹1):
+```bash
+python scripts/add_test_product.py
+```
+
+**Test Card Details** (Razorpay Test Mode):
+- Card: 4111 1111 1111 1111
+- CVV: Any 3 digits
+- Expiry: Any future date
+
+---
+
+## 🚀 Deployment
+
+### Railway Deployment (Recommended)
+
+#### Prerequisites
+- GitHub account with code pushed
+- Railway account (https://railway.app)
+- Supabase PostgreSQL database
+
+#### Steps
+
+**1. Push to GitHub**:
+```bash
+git add -A
+git commit -m "Ready for deployment"
+git push origin main
+```
+
+**2. Create Railway Project**:
+- Go to https://railway.app/dashboard
+- Click "New Project" → "Deploy from GitHub repo"
+- Select your `printbox3d-backend` repository
+
+**3. Add Environment Variables** in Railway dashboard → Variables:
+
+```bash
+SECRET_KEY=<generated-secret-key>
+DEBUG=False
+ALLOWED_HOSTS=*.railway.app,printbox3d.com,www.printbox3d.com
+DATABASE_URL=postgresql://user:pass@host:6543/postgres
+RAZORPAY_KEY_ID=rzp_live_xxx
+RAZORPAY_KEY_SECRET=xxx
+CORS_ALLOWED_ORIGINS=https://www.printbox3d.com,https://printbox3d.com
+CSRF_TRUSTED_ORIGINS=https://your-railway-domain.railway.app,https://printbox3d.com
+EMAIL_HOST=smtp.hostinger.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=info@printbox3d.com
+EMAIL_HOST_PASSWORD=xxx
+DEFAULT_FROM_EMAIL=info@printbox3d.com
+```
+
+**4. Deploy**:
+- Railway auto-deploys on every git push
+- Check deployment logs for errors
+- Test endpoints at your Railway URL
+
+**5. Run Migrations** (one-time):
+```bash
+# In Railway shell
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+#### Important Notes
+
+⚠️ **Production Checklist**:
+- [ ] `DEBUG=False`
+- [ ] Strong `SECRET_KEY` (use `scripts/generate_secret_key.py`)
+- [ ] `ALLOWED_HOSTS` includes your domain
+- [ ] `CORS_ALLOWED_ORIGINS` includes frontend URL
+- [ ] Razorpay **LIVE** credentials (not test)
+- [ ] Email credentials configured
+- [ ] Database backups enabled (Supabase)
+
+---
+
+## 🛠️ Utility Scripts
+
+Scripts located in `scripts/` directory:
+
+### Product Management
+
+```bash
+# Add full product catalog
+python scripts/add_products.py
+
+# Add test product (₹1 for payment testing)
+python scripts/add_test_product.py
+
+# Add specific new products
+python scripts/add_new_products.py
+
+# Split keychain variants
+python scripts/split_keychains.py
+
+# Add discount percentages
+python scripts/add_discount.py
+```
+
+### Deployment Tools
+
+```bash
+# Generate Django SECRET_KEY
+python scripts/generate_secret_key.py
+
+# Check environment variables (run in Railway shell)
+python scripts/check_env.py
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. Payment 502 Error / CORS Blocked**
+
+**Problem**: `502 Bad Gateway` or `CORS policy blocked`
+
+**Solution**:
+```bash
+# Check Railway environment variables are set:
+RAZORPAY_KEY_ID=xxx
+RAZORPAY_KEY_SECRET=xxx
+CORS_ALLOWED_ORIGINS=https://www.printbox3d.com
+
+# Verify in Railway shell:
+python scripts/check_env.py
+```
+
+**2. Database Connection Error**
+
+**Problem**: `could not connect to server` or `relation does not exist`
+
+**Solution**:
+```bash
+# Verify DATABASE_URL format (must include port 6543 for pooling)
+DATABASE_URL=postgresql://user:pass@host:6543/postgres
+
+# Run migrations
+python manage.py migrate
+```
+
+**3. Razorpay Signature Verification Failed**
+
+**Problem**: Payment succeeds but verification fails
+
+**Solution**:
+- Ensure `RAZORPAY_KEY_SECRET` matches your Razorpay dashboard
+- Check CORS is properly configured
+- Verify frontend sends correct `razorpay_signature`
+
+**4. Import Errors / Module Not Found**
+
+**Problem**: `ModuleNotFoundError: No module named 'xxx'`
+
+**Solution**:
+```bash
+# Reinstall dependencies
+pip install -r requirements.txt
+
+# Verify virtual environment is activated
+# Should see (.venv) in terminal prompt
+```
+
+**5. Static Files Not Loading (Production)**
+
+**Problem**: CSS/JS not loading in admin panel
+
+**Solution**:
+```bash
+# Collect static files
+python manage.py collectstatic --noinput
+```
+
+### Debug Mode
+
+**Enable detailed error messages** (development only):
+
+```env
+DEBUG=True
+```
+
+**Check Django logs**:
+```bash
+# Railway logs
+railway logs
+
+# Local logs
+# Errors appear in terminal running manage.py runserver
+```
+
+---
 
 ## 🧪 Testing
 
-Run tests:
-
+### Run Tests
 ```bash
 python manage.py test
 ```
 
-## 📧 Email Configuration
+### Test Payment Flow
+```bash
+# 1. Add test product
+python scripts/add_test_product.py
 
-To enable email notifications, add to `.env`:
+# 2. Use Razorpay test credentials
+RAZORPAY_KEY_ID=rzp_test_xxx
+RAZORPAY_KEY_SECRET=xxx
 
-```env
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your-email@example.com
-EMAIL_HOST_PASSWORD=your-app-password
+# 3. Test card numbers (Razorpay Test Mode)
+Card: 4111 1111 1111 1111
+CVV: 123
+Expiry: 12/25
 ```
 
-## 🔒 Security Notes
+---
 
-- Never commit `.env` file
-- Use strong `SECRET_KEY` in production
-- Set `DEBUG=False` in production
-- Configure proper `ALLOWED_HOSTS`
-- Use HTTPS in production
-- Regularly update dependencies
+## 📚 Technology Stack
 
-## 🤝 Integration with Frontend
+- **Backend**: Django 4.2.7
+- **API**: Django REST Framework
+- **Authentication**: djangorestframework-simplejwt
+- **Database**: PostgreSQL (Supabase) / SQLite (dev)
+- **Payment**: Razorpay
+- **Email**: SMTP (Hostinger)
+- **Storage**: Media files (local/cloud)
+- **Hosting**: Railway
+- **Version Control**: Git + GitHub
 
-Update your React frontend to use the API:
-
-```javascript
-// In your React app
-const API_URL = 'https://your-railway-domain.railway.app/api';
-
-// Fetch products
-fetch(`${API_URL}/products/`)
-  .then(res => res.json())
-  .then(data => console.log(data));
-
-// Submit custom order
-const formData = new FormData();
-formData.append('name', 'John Doe');
-formData.append('email', 'john@example.com');
-// ... add other fields
-
-fetch(`${API_URL}/custom-orders/`, {
-  method: 'POST',
-  body: formData
-})
-  .then(res => res.json())
-  .then(data => console.log(data));
-```
+---
 
 ## 📞 Support
 
-For issues or questions:
-- Email: info@printbox3d.com
-- GitHub Issues: [Create an issue](https://github.com/yourusername/printbox-backend/issues)
+- **Email**: info@printbox3d.com
+- **Website**: https://www.printbox3d.com
+- **Issues**: [GitHub Issues](https://github.com/mouli224/printbox3d-backend/issues)
 
-## 📄 License
+---
 
-This project is licensed under the MIT License.
+## 📝 License
+
+MIT License - Free to use for personal and commercial projects.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
 
 ---
 
