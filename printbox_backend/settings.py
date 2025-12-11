@@ -167,14 +167,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #     cast=Csv()
 # )
 
-# Use explicit allowed origins (safer than wildcard in prod)
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'https://printbox3d.com',
-    'https://www.printbox3d.com',
-    'https://printbox3d.in',
-    'https://www.printbox3d.in',
-]
+# Use explicit allowed origins from environment or defaults
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,https://printbox3d.com,https://www.printbox3d.com,https://printbox3d.in,https://www.printbox3d.in',
+    cast=Csv()
+)
 
 # CSRF Trusted Origins (for admin panel and forms)
 CSRF_TRUSTED_ORIGINS = config(
