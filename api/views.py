@@ -447,105 +447,94 @@ def create_order(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_payment(request):
-    """
-    Verify Razorpay payment signature and update order status
-    """
     logger.info(f"Payment verification request received: {request.data}")
-    
-    serializer = PaymentVerificationSerializer(data=request.data)
-    
-    if not serializer.is_valid():
-        logger.error(f"Payment verification serializer errors: {serializer.errors}")
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    data = serializer.validated_data
-    logger.info(f"Validated data: order_id={data.get('order_id')}")
-    
+
     try:
-        order = Order.objects.get(order_id=data['order_id'])
-        logger.info(f"Order found: {order.order_id}, status: {order.status}")
-    except Order.DoesNotExist:
-        logger.error(f"Order not found: {data['order_id']}")
-        return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    # Verify signature
-    try:
-        # Create signature
+        # Extract fields safely
+        razorpay_order_id = request.data.get("razorpay_order_id")
+        razorpay_payment_id = request.data.get("razorpay_payment_id")
+        razorpay_signature = request.data.get("razorpay_signature")
+
+        if not (razorpay_order_id and razorpay_payment_id and razorpay_signature):
+            return Response(
+                {"error": "Missing required Razorpay fields"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Find order using Razorpay Order ID (THIS IS THE CORRECT METHOD)
+        order = Order.objects.filter(razorpay_order_id=razorpay_order_id).first()
+
+        if not order:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        logger.info(f"Order found: {order.order_id}")
+
+        # Generate signature manually
         generated_signature = hmac.new(
             settings.RAZORPAY_KEY_SECRET.encode(),
-            f"{data['razorpay_order_id']}|{data['razorpay_payment_id']}".encode(),
+            f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
             hashlib.sha256
         ).hexdigest()
-        
-        logger.info(f"Generated signature: {generated_signature}")
-        logger.info(f"Received signature: {data['razorpay_signature']}")
-        
-        if generated_signature == data['razorpay_signature']:
-            # Payment verified successfully
-            logger.info("Payment signature verified successfully")
-            
-            order.razorpay_payment_id = data['razorpay_payment_id']
-            order.razorpay_signature = data['razorpay_signature']
-            order.status = 'PAID'
-            order.payment_status = 'CAPTURED'
-            order.save()
-            
-            logger.info(f"Order updated to PAID: {order.order_id}")
-            
-            # Update payment record
-            payment = order.payment
-            payment.razorpay_payment_id = data['razorpay_payment_id']
-            payment.razorpay_signature = data['razorpay_signature']
-            payment.status = 'CAPTURED'
-            payment.save()
-            
-            # Update product stock
-            for item in order.items.all():
-                if item.product:
-                    item.product.stock_quantity -= item.quantity
-                    item.product.save()
-            
-            logger.info("Stock updated for all items")
-            
-            # Send order confirmation emails
-            try:
-                send_order_confirmation_email(order)
-                logger.info("Order confirmation email sent")
-            except Exception as email_error:
-                logger.error(f"Failed to send order confirmation email: {email_error}")
 
-            
-            return Response({
-                'success': True,
-                'message': 'Payment verified successfully',
-                'order_id': order.order_id,
-                'status': 'PAID'
-            }, status=status.HTTP_200_OK)
-        else:
-            # Signature verification failed
-            logger.warning(f"Signature mismatch for order {order.order_id}")
-            
-            order.status = 'FAILED'
-            order.payment_status = 'FAILED'
-            order.save()
-            
-            payment = order.payment
-            payment.status = 'FAILED'
-            payment.error_description = 'Signature verification failed'
+        logger.info(f"Generated: {generated_signature}")
+        logger.info(f"Received: {razorpay_signature}")
+
+        if generated_signature != razorpay_signature:
+            # Mismatch
+            order.status = "FAILED"
+            order.payment_status = "FAILED"
+            order.save(update_fields=["status", "payment_status"])
+
+            payment = getattr(order, "payment", None)
+            if payment:
+                payment.status = "FAILED"
+                payment.error_description = "Signature mismatch"
+                payment.save()
+
+            return Response(
+                {"success": False, "error": "Signature verification failed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # SUCCESS
+        order.status = "PAID"
+        order.payment_status = "CAPTURED"
+        order.razorpay_payment_id = razorpay_payment_id
+        order.razorpay_signature = razorpay_signature
+        order.save(update_fields=["status", "payment_status", "razorpay_payment_id", "razorpay_signature"])
+
+        # Update payment record safely
+        payment = getattr(order, "payment", None)
+        if payment:
+            payment.status = "CAPTURED"
+            payment.razorpay_payment_id = razorpay_payment_id
+            payment.razorpay_signature = razorpay_signature
             payment.save()
-            
-            return Response({
-                'success': False,
-                'error': 'Payment verification failed'
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
+
+        # Reduce stock safely
+        for item in order.items.all():
+            if item.product:
+                item.product.stock_quantity -= item.quantity
+                item.product.save(update_fields=["stock_quantity"])
+
+        # Send confirmation email
+        try:
+            send_order_confirmation_email(order)
+        except Exception as e:
+            logger.error(f"Email error: {e}")
+
+        return Response(
+            {"success": True, "order_id": order.order_id, "status": "PAID"},
+            status=status.HTTP_200_OK
+        )
+
     except Exception as e:
-        logger.error(f"Payment verification exception: {str(e)}", exc_info=True)
-        return Response({
-            'success': False,
-            'error': 'Payment verification error',
-            'details': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Payment verify crash: {str(e)}", exc_info=True)
+        return Response(
+            {"success": False, "error": "Server error", "details": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 
 @api_view(['GET'])
