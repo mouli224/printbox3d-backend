@@ -49,7 +49,9 @@ INSTALLED_APPS = [
 # MIDDLEWARE
 # -------------------------------------------------------------------------
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # Must be first
+    
+    "corsheaders.middleware.CorsMiddleware",  # Must be firs
+    "django.middleware.common.CommonMiddleware",t
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -174,10 +176,13 @@ CORS_ALLOW_METHODS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://web-production-d7d11.up.railway.app",
     "https://www.printbox3d.com",
     "https://printbox3d.com",
-    "https://web-production-d7d11.up.railway.app",
+    "https://www.printbox3d.in",
+    "https://printbox3d.in",
 ]
+
 
 # Exempt payment verification from CSRF (uses Razorpay signature instead)
 CSRF_COOKIE_SECURE = True
