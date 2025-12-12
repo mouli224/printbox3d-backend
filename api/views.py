@@ -598,3 +598,14 @@ def get_user_orders(request):
     
     serializer = OrderSerializer(all_orders, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+def debug_settings(request):
+    from django.conf import settings
+    return Response({
+        "allowed_hosts": settings.ALLOWED_HOSTS,
+        "cors_allowed": getattr(settings, "CORS_ALLOWED_ORIGINS", "NOT FOUND"),
+        "cors_all": getattr(settings, "CORS_ALLOW_ALL_ORIGINS", "NOT FOUND"),
+        "debug": settings.DEBUG,
+        "cors_middleware": "corsheaders.middleware.CorsMiddleware" in settings.MIDDLEWARE
+    })

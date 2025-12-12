@@ -5,7 +5,7 @@ from .views import (
     CategoryViewSet, MaterialViewSet, ProductViewSet,
     CustomOrderViewSet, ContactMessageViewSet,
     NewsletterViewSet, TestimonialViewSet,
-    create_order, verify_payment, get_order_status, payment_failed,
+    create_order, debug_settings, verify_payment, get_order_status, payment_failed,
     get_user_orders
 )
 from .auth_views import register, login, logout, get_user_profile, update_user_profile
@@ -21,6 +21,8 @@ router.register(r'testimonials', TestimonialViewSet, basename='testimonial')
 
 urlpatterns = [
     path('', include(router.urls)),
+
+    path("debug-settings/", debug_settings),
     
     # Authentication endpoints
     path('auth/register/', register, name='register'),
@@ -38,4 +40,6 @@ urlpatterns = [
     
     # User orders
     path('orders/user/me/', get_user_orders, name='user_orders'),
+
+    
 ]
