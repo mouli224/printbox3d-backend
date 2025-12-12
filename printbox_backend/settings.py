@@ -179,6 +179,12 @@ CSRF_TRUSTED_ORIGINS = [
     "https://web-production-d7d11.up.railway.app",
 ]
 
+# Exempt payment verification from CSRF (uses Razorpay signature instead)
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'None'
+
 # -------------------------------------------------------------------------
 # DRF CONFIG
 # -------------------------------------------------------------------------
