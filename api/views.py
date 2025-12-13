@@ -443,7 +443,7 @@ def create_order(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# @csrf_exempt
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_payment(request):
