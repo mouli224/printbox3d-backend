@@ -448,6 +448,9 @@ def create_order(request):
 @permission_classes([AllowAny])
 def verify_payment(request):
     logger.info(f"Payment verification request received: {request.data}")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request origin: {request.headers.get('Origin', 'No origin header')}")
 
     try:
         # Extract fields safely
