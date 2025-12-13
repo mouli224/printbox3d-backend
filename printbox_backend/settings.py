@@ -48,10 +48,10 @@ INSTALLED_APPS = [
 # -------------------------------------------------------------------------
 # MIDDLEWARE
 # -------------------------------------------------------------------------
+# MIDDLEWARE
+# -------------------------------------------------------------------------
 MIDDLEWARE = [
-    
-    "corsheaders.middleware.CorsMiddleware",  # Must be firs
-    "django.middleware.common.CommonMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # MUST be first for CORS to work
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -150,6 +150,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     "https://www.printbox3d.com",
     "https://printbox3d.com",
+    "https://web-production-d7d11.up.railway.app",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
