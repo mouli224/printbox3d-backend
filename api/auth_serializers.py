@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    """Serializer for user registration"""
+    """Serializer for user registration - simplified to essential fields only"""
     email = serializers.EmailField(
         required=True,
         validators=[UniqueValidator(queryset=User.objects.all())]
@@ -24,23 +24,32 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[validate_password]
     )
     password2 = serializers.CharField(write_only=True, required=True)
+    phone = serializers.CharField(required=True, max_length=15)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2', 'first_name', 'last_name']
+        fields = ['username', 'email', 'password', 'password2', 'first_name', 'phone']
         extra_kwargs = {
-            'first_name': {'required': False},
-            'last_name': {'required': False}
+            'first_name': {'required': True},
+            'username': {'required': False}
         }
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+        
+        # Auto-generate username from email if not provided
+        if not attrs.get('username'):
+            attrs['username'] = attrs['email'].split('@')[0].lower().replace('.', '').replace('-', '')[:30]
+        
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('password2')
+        phone = validated_data.pop('phone', None)  # Store phone for later if needed
         user = User.objects.create_user(**validated_data)
+        # Note: Phone is not stored in User model by default. 
+        # Add to user profile model if you create one later.
         return user
 
 
