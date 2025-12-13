@@ -444,9 +444,18 @@ def create_order(request):
 
 
 @csrf_exempt
-@api_view(['POST'])
+@api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def verify_payment(request):
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = Response(status=status.HTTP_200_OK)
+        response['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+    
     logger.info(f"Payment verification request received: {request.data}")
     logger.info(f"Request headers: {dict(request.headers)}")
     logger.info(f"Request method: {request.method}")
