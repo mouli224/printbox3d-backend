@@ -48,8 +48,6 @@ INSTALLED_APPS = [
 # -------------------------------------------------------------------------
 # MIDDLEWARE
 # -------------------------------------------------------------------------
-# MIDDLEWARE
-# -------------------------------------------------------------------------
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # MUST be first for CORS to work
     "django.middleware.security.SecurityMiddleware",
@@ -147,11 +145,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # -------------------------------------------------------------------------
 # CORS CONFIG (Correct + Razorpay safe)
 # -------------------------------------------------------------------------
-CORS_ALLOWED_ORIGINS = [
-    "https://www.printbox3d.com",
-    "https://printbox3d.com",
-    "https://web-production-d7d11.up.railway.app",
-]
+# Temporarily allow all origins for debugging
+CORS_ALLOW_ALL_ORIGINS = True
+
+# CORS_ALLOWED_ORIGINS = [
+#     "https://www.printbox3d.com",
+#     "https://printbox3d.com",
+#     "https://web-production-d7d11.up.railway.app",
+# ]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -165,6 +166,13 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "cache-control",
+    "x-requested-with",
+]
+
+CORS_EXPOSE_HEADERS = [
+    "content-type",
+    "x-csrftoken",
 ]
 
 CORS_ALLOW_METHODS = [
@@ -174,7 +182,10 @@ CORS_ALLOW_METHODS = [
     "PATCH",
     "DELETE",
     "OPTIONS",
+    "HEAD",
 ]
+
+CORS_PREFLIGHT_MAX_AGE = 86400  # Cache preflight for 24 hours
 
 CSRF_TRUSTED_ORIGINS = [
     "https://web-production-d7d11.up.railway.app",
