@@ -447,6 +447,10 @@ def create_order(request):
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def verify_payment(request):
+    """
+    Verify Razorpay payment signature and update order status.
+    This endpoint is called after successful Razorpay payment.
+    """
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
         response = Response(status=status.HTTP_200_OK)
@@ -456,94 +460,136 @@ def verify_payment(request):
         response['Access-Control-Allow-Credentials'] = 'true'
         return response
     
-    logger.info(f"Payment verification request received: {request.data}")
-    logger.info(f"Request headers: {dict(request.headers)}")
-    logger.info(f"Request method: {request.method}")
-    logger.info(f"Request origin: {request.headers.get('Origin', 'No origin header')}")
+    logger.info(f"=== PAYMENT VERIFICATION START ===")
+    logger.info(f"Request data: {request.data}")
+    logger.info(f"Request origin: {request.headers.get('Origin', 'No origin')}")
 
     try:
-        # Extract fields safely
-        razorpay_order_id = request.data.get("razorpay_order_id")
-        razorpay_payment_id = request.data.get("razorpay_payment_id")
-        razorpay_signature = request.data.get("razorpay_signature")
+        # Extract and validate fields
+        razorpay_order_id = request.data.get("razorpay_order_id", "").strip()
+        razorpay_payment_id = request.data.get("razorpay_payment_id", "").strip()
+        razorpay_signature = request.data.get("razorpay_signature", "").strip()
 
-        if not (razorpay_order_id and razorpay_payment_id and razorpay_signature):
+        if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
+            logger.error("Missing required Razorpay fields")
             return Response(
-                {"error": "Missing required Razorpay fields"},
+                {
+                    "success": False,
+                    "error": "Missing required Razorpay fields",
+                    "received": {
+                        "order_id": bool(razorpay_order_id),
+                        "payment_id": bool(razorpay_payment_id),
+                        "signature": bool(razorpay_signature)
+                    }
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Find order using Razorpay Order ID (THIS IS THE CORRECT METHOD)
-        order = Order.objects.filter(razorpay_order_id=razorpay_order_id).first()
-
-        if not order:
-            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        logger.info(f"Order found: {order.order_id}")
-
-        # Generate signature manually
-        generated_signature = hmac.new(
-            settings.RAZORPAY_KEY_SECRET.encode(),
-            f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
-            hashlib.sha256
-        ).hexdigest()
-
-        logger.info(f"Generated: {generated_signature}")
-        logger.info(f"Received: {razorpay_signature}")
-
-        if generated_signature != razorpay_signature:
-            # Mismatch
-            order.status = "FAILED"
-            order.payment_status = "FAILED"
-            order.save(update_fields=["status", "payment_status"])
-
-            payment = getattr(order, "payment", None)
-            if payment:
-                payment.status = "FAILED"
-                payment.error_description = "Signature mismatch"
-                payment.save()
-
+        # Find order using Razorpay Order ID
+        try:
+            order = Order.objects.select_related('payment').prefetch_related('items__product').get(
+                razorpay_order_id=razorpay_order_id
+            )
+            logger.info(f"Order found: {order.order_id}, Current status: {order.status}")
+        except Order.DoesNotExist:
+            logger.error(f"Order not found for razorpay_order_id: {razorpay_order_id}")
             return Response(
-                {"success": False, "error": "Signature verification failed"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"success": False, "error": "Order not found"},
+                status=status.HTTP_404_NOT_FOUND
             )
 
-        # SUCCESS
+        # Verify signature
+        try:
+            generated_signature = hmac.new(
+                settings.RAZORPAY_KEY_SECRET.encode(),
+                f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
+                hashlib.sha256
+            ).hexdigest()
+
+            logger.info(f"Signature verification - Generated: {generated_signature[:20]}...")
+            logger.info(f"Signature verification - Received: {razorpay_signature[:20]}...")
+
+            if generated_signature != razorpay_signature:
+                logger.error("Signature mismatch!")
+                
+                # Mark as failed
+                order.status = "FAILED"
+                order.payment_status = "FAILED"
+                order.save(update_fields=["status", "payment_status"])
+
+                if hasattr(order, 'payment') and order.payment:
+                    order.payment.status = "FAILED"
+                    order.payment.error_description = "Signature verification failed"
+                    order.payment.save(update_fields=["status", "error_description"])
+
+                return Response(
+                    {"success": False, "error": "Signature verification failed"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        except Exception as sig_error:
+            logger.error(f"Signature verification error: {sig_error}", exc_info=True)
+            return Response(
+                {"success": False, "error": "Signature verification error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # SUCCESS - Update order status
+        logger.info("Signature verified successfully! Updating order...")
+        
         order.status = "PAID"
         order.payment_status = "CAPTURED"
         order.razorpay_payment_id = razorpay_payment_id
         order.razorpay_signature = razorpay_signature
         order.save(update_fields=["status", "payment_status", "razorpay_payment_id", "razorpay_signature"])
 
-        # Update payment record safely
-        payment = getattr(order, "payment", None)
-        if payment:
-            payment.status = "CAPTURED"
-            payment.razorpay_payment_id = razorpay_payment_id
-            payment.razorpay_signature = razorpay_signature
-            payment.save()
+        # Update payment record
+        if hasattr(order, 'payment') and order.payment:
+            order.payment.status = "CAPTURED"
+            order.payment.razorpay_payment_id = razorpay_payment_id
+            order.payment.razorpay_signature = razorpay_signature
+            order.payment.save(update_fields=["status", "razorpay_payment_id", "razorpay_signature"])
 
-        # Reduce stock safely
-        for item in order.items.all():
-            if item.product:
-                item.product.stock_quantity -= item.quantity
-                item.product.save(update_fields=["stock_quantity"])
+        # Reduce stock
+        try:
+            for item in order.items.all():
+                if item.product and item.product.stock_quantity >= item.quantity:
+                    item.product.stock_quantity -= item.quantity
+                    item.product.save(update_fields=["stock_quantity"])
+                    logger.info(f"Stock reduced for {item.product.name}: -{item.quantity}")
+        except Exception as stock_error:
+            logger.error(f"Stock reduction error: {stock_error}", exc_info=True)
+            # Don't fail the payment for stock errors
 
-        # Send confirmation email
+        # Send confirmation email (async, don't wait)
         try:
             send_order_confirmation_email(order)
-        except Exception as e:
-            logger.error(f"Email error: {e}")
+            logger.info("Confirmation email sent")
+        except Exception as email_error:
+            logger.error(f"Email sending error: {email_error}")
+            # Don't fail the payment for email errors
 
+        logger.info(f"=== PAYMENT VERIFICATION SUCCESS for order {order.order_id} ===")
+        
         return Response(
-            {"success": True, "order_id": order.order_id, "status": "PAID"},
+            {
+                "success": True,
+                "order_id": order.order_id,
+                "status": "PAID",
+                "message": "Payment verified successfully"
+            },
             status=status.HTTP_200_OK
         )
 
     except Exception as e:
-        logger.error(f"Payment verify crash: {str(e)}", exc_info=True)
+        logger.error(f"=== PAYMENT VERIFICATION FAILED ===")
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return Response(
-            {"success": False, "error": "Server error", "details": str(e)},
+            {
+                "success": False,
+                "error": "Payment verification failed",
+                "details": str(e) if settings.DEBUG else "Internal server error"
+            },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
