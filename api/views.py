@@ -443,15 +443,6 @@ def create_order(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-def add_cors_headers(response, request):
-    """Add CORS headers to response"""
-    origin = request.headers.get('Origin', '*')
-    response['Access-Control-Allow-Origin'] = origin
-    response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-    response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-    response['Access-Control-Allow-Credentials'] = 'true'
-    return response
-
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def verify_payment(request):
@@ -461,8 +452,7 @@ def verify_payment(request):
     """
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
-        response = Response(status=status.HTTP_200_OK)
-        return add_cors_headers(response, request)
+        return Response(status=status.HTTP_200_OK)
     
     logger.info(f"=== PAYMENT VERIFICATION START ===")
     logger.info(f"Request data: {request.data}")
@@ -488,7 +478,7 @@ def verify_payment(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-            return add_cors_headers(response, request)
+            return response
 
         # Find order using Razorpay Order ID
         try:
@@ -502,7 +492,7 @@ def verify_payment(request):
                 {"success": False, "error": "Order not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
-            return add_cors_headers(response, request)
+            return response
 
         # Verify signature
         try:
@@ -532,7 +522,7 @@ def verify_payment(request):
                     {"success": False, "error": "Signature verification failed"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-                return add_cors_headers(response, request)
+                return response
 
         except Exception as sig_error:
             logger.error(f"Signature verification error: {sig_error}", exc_info=True)
@@ -540,7 +530,7 @@ def verify_payment(request):
                 {"success": False, "error": "Signature verification error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-            return add_cors_headers(response, request)
+            return response
 
         # SUCCESS - Update order status
         logger.info("Signature verified successfully! Updating order...")
@@ -588,7 +578,7 @@ def verify_payment(request):
             },
             status=status.HTTP_200_OK
         )
-        return add_cors_headers(response, request)
+        return response
 
     except Exception as e:
         logger.error(f"=== PAYMENT VERIFICATION FAILED ===")
@@ -601,7 +591,7 @@ def verify_payment(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-        return add_cors_headers(response, request)
+        return response
 
 
 
