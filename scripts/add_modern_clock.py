@@ -1,5 +1,5 @@
 """
-Add Modern Clock product to database with multiple images
+Add Modern Clock product to database with variant pricing info
 """
 import os
 import sys
@@ -27,42 +27,48 @@ def add_modern_clock():
         return
     
     # Update or create the clock product
+    # Using base price for "without MagSafe" variant
     product, created = Product.objects.update_or_create(
-        slug='clock',
+        slug='modern-clock',
         defaults={
-            'name': 'Modern Wall Clock',
-            'description': 'Premium 3D printed modern wall clock with sleek geometric design. Features silent quartz movement for peaceful timekeeping. Perfect blend of functionality and contemporary aesthetics. Available in multiple color options to match any interior decor.',
+            'name': 'Modern Clock',
+            'description': '''Premium 3D printed modern clock with sleek design. Features silent quartz movement for peaceful timekeeping.
+
+Available in two variants:
+• Without MagSafe Charger - ₹999
+• With MagSafe Charger - ₹1,599
+
+The MagSafe variant includes an integrated wireless charging pad compatible with iPhone 12 and newer models. Perfect blend of functionality and contemporary aesthetics.''',
             'category': home_decor,
             'material': pla,
-            'price': 1099.00,
-            'original_price': 1499.00,  # Add original price for discount
-            'discount_percentage': 27,  # Calculate: (1499-1099)/1499 * 100
+            'price': 999.00,  # Base price (without MagSafe)
             'color': 'Black/White',
-            'dimensions': '30cm x 30cm x 5cm',
-            'weight': 350,
-            'stock_quantity': 15,
+            'dimensions': '25cm x 15cm x 5cm',
+            'weight': 300,
+            'stock_quantity': 20,
             'is_featured': True,  # Make it featured
-            'image': 'products/special-collections/clock/modern-clock1.JPG',
-            'frontend_image': '/assets/products/special-collections/clock/modern-clock1.JPG'
+            'image': 'products/special-collections/clock/modern-clock1.webp',
+            'frontend_image': '/assets/products/special-collections/clock/modern-clock1.webp'
         }
     )
     
     action = "Created" if created else "Updated"
     print(f"{action} product: {product.name}")
     print(f"  - Slug: {product.slug}")
-    print(f"  - Price: ₹{product.price}")
-    print(f"  - Discount: {product.discount_percentage}%")
+    print(f"  - Base Price: ₹{product.price} (Without MagSafe)")
+    print(f"  - MagSafe Variant: ₹1,599")
     print(f"  - Featured: {product.is_featured}")
     print(f"  - Image: {product.frontend_image}")
     print(f"  - Stock: {product.stock_quantity}")
     
     # Note about additional images
     print("\nNote: Additional images available at:")
-    print("  - /assets/products/special-collections/clock/modern-clock2.JPG")
-    print("  - /assets/products/special-collections/clock/modern-clock3.JPG")
-    print("  - /assets/products/special-collections/clock/modern-clock4.JPG")
-    print("\nThese can be added to the product detail page gallery.")
+    print("  - /assets/products/special-collections/clock/modern-clock2.webp")
+    print("  - /assets/products/special-collections/clock/modern-clock3.webp")
+    print("  - /assets/products/special-collections/clock/modern-clock4.webp")
+    print("\n⚠️  IMPORTANT: Frontend needs to be updated to handle variant selection")
+    print("  Variants: Without MagSafe (₹999) | With MagSafe (₹1,599)")
 
 if __name__ == '__main__':
     add_modern_clock()
-    print("\n✓ Modern Clock product added successfully!")
+    print("\n✓ Modern Clock product updated successfully!")
