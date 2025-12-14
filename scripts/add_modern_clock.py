@@ -47,8 +47,8 @@ The MagSafe variant includes an integrated wireless charging pad compatible with
             'weight': 300,
             'stock_quantity': 20,
             'is_featured': True,  # Make it featured
-            'image': 'products/special-collections/clock/modern-clock1.webp',
-            'frontend_image': '/assets/products/special-collections/clock/modern-clock1.webp'
+            'image': 'products/special-collections/modern-clock/modern-clock1.webp',
+            'frontend_image': '/assets/products/special-collections/modern-clock/modern-clock1.webp'
         }
     )
     
@@ -63,9 +63,9 @@ The MagSafe variant includes an integrated wireless charging pad compatible with
     
     # Note about additional images
     print("\nNote: Additional images available at:")
-    print("  - /assets/products/special-collections/clock/modern-clock2.webp")
-    print("  - /assets/products/special-collections/clock/modern-clock3.webp")
-    print("  - /assets/products/special-collections/clock/modern-clock4.webp")
+    print("  - /assets/products/special-collections/modern-clock/modern-clock2.webp")
+    print("  - /assets/products/special-collections/modern-clock/modern-clock3.webp")
+    print("  - /assets/products/special-collections/modern-clock/modern-clock4.webp")
     print("\n⚠️  IMPORTANT: Frontend needs to be updated to handle variant selection")
     print("  Variants: Without MagSafe (₹999) | With MagSafe (₹1,599)")
 
