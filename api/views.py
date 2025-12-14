@@ -443,6 +443,15 @@ def create_order(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def add_cors_headers(response, request):
+    """Add CORS headers to response"""
+    origin = request.headers.get('Origin', '*')
+    response['Access-Control-Allow-Origin'] = origin
+    response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+    response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+    response['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
 @csrf_exempt
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
@@ -454,11 +463,7 @@ def verify_payment(request):
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
         response = Response(status=status.HTTP_200_OK)
-        response['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
-        response['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response['Access-Control-Allow-Credentials'] = 'true'
-        return response
+        return add_cors_headers(response, request)
     
     logger.info(f"=== PAYMENT VERIFICATION START ===")
     logger.info(f"Request data: {request.data}")
@@ -472,7 +477,7 @@ def verify_payment(request):
 
         if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
             logger.error("Missing required Razorpay fields")
-            return Response(
+            response = Response(
                 {
                     "success": False,
                     "error": "Missing required Razorpay fields",
@@ -484,6 +489,7 @@ def verify_payment(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+            return add_cors_headers(response, request)
 
         # Find order using Razorpay Order ID
         try:
@@ -493,10 +499,11 @@ def verify_payment(request):
             logger.info(f"Order found: {order.order_id}, Current status: {order.status}")
         except Order.DoesNotExist:
             logger.error(f"Order not found for razorpay_order_id: {razorpay_order_id}")
-            return Response(
+            response = Response(
                 {"success": False, "error": "Order not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
+            return add_cors_headers(response, request)
 
         # Verify signature
         try:
@@ -522,17 +529,19 @@ def verify_payment(request):
                     order.payment.error_description = "Signature verification failed"
                     order.payment.save(update_fields=["status", "error_description"])
 
-                return Response(
+                response = Response(
                     {"success": False, "error": "Signature verification failed"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+                return add_cors_headers(response, request)
 
         except Exception as sig_error:
             logger.error(f"Signature verification error: {sig_error}", exc_info=True)
-            return Response(
+            response = Response(
                 {"success": False, "error": "Signature verification error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            return add_cors_headers(response, request)
 
         # SUCCESS - Update order status
         logger.info("Signature verified successfully! Updating order...")
@@ -571,7 +580,7 @@ def verify_payment(request):
 
         logger.info(f"=== PAYMENT VERIFICATION SUCCESS for order {order.order_id} ===")
         
-        return Response(
+        response = Response(
             {
                 "success": True,
                 "order_id": order.order_id,
@@ -580,11 +589,12 @@ def verify_payment(request):
             },
             status=status.HTTP_200_OK
         )
+        return add_cors_headers(response, request)
 
     except Exception as e:
         logger.error(f"=== PAYMENT VERIFICATION FAILED ===")
         logger.error(f"Error: {str(e)}", exc_info=True)
-        return Response(
+        response = Response(
             {
                 "success": False,
                 "error": "Payment verification failed",
@@ -592,6 +602,7 @@ def verify_payment(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+        return add_cors_headers(response, request)
 
 
 
