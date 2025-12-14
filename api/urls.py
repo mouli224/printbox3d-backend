@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
@@ -34,7 +35,7 @@ urlpatterns = [
     
     # Payment endpoints
     path('orders/create/', create_order, name='create_order'),
-    path('orders/verify-payment/', verify_payment, name='verify_payment'),
+    path('orders/verify-payment/', csrf_exempt(verify_payment), name='verify_payment'),
     path('orders/<str:order_id>/', get_order_status, name='order_status'),
     path('orders/payment-failed/', payment_failed, name='payment_failed'),
     

@@ -452,7 +452,6 @@ def add_cors_headers(response, request):
     response['Access-Control-Allow-Credentials'] = 'true'
     return response
 
-@csrf_exempt
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def verify_payment(request):
