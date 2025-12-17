@@ -683,6 +683,14 @@ def verify_payment_simple(request):
         order.razorpay_payment_id = razorpay_payment_id
         order.save()
         
+        # Send confirmation email
+        try:
+            send_order_confirmation_email(order)
+            logger.info(f"Confirmation email sent for order {order.order_id}")
+        except Exception as email_error:
+            logger.error(f"Email sending error: {email_error}", exc_info=True)
+            # Don't fail the payment for email errors
+        
         response = JsonResponse({
             'success': True,
             'order_id': order.order_id,
