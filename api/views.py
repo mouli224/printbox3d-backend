@@ -52,12 +52,19 @@ logger = logging.getLogger(__name__)
 def add_cors_headers(func):
     @wraps(func)
     def wrapper(request, *args, **kwargs):
-        response = func(request, *args, **kwargs)
-        response['Access-Control-Allow-Origin'] = '*'
-        response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response['Access-Control-Allow-Credentials'] = 'true'
-        return response
+        logger.info(f"CORS decorator - Before function call")
+        try:
+            response = func(request, *args, **kwargs)
+            logger.info(f"CORS decorator - Got response, adding headers")
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response['Access-Control-Allow-Credentials'] = 'true'
+            logger.info(f"CORS decorator - Headers added, returning")
+            return response
+        except Exception as e:
+            logger.error(f"CORS decorator - Exception: {e}", exc_info=True)
+            raise
     return wrapper
 
 
@@ -466,13 +473,17 @@ def verify_payment(request):
     Verify Razorpay payment signature and update order status.
     This endpoint is called after successful Razorpay payment.
     """
+    logger.info(f"=== VERIFY PAYMENT ENDPOINT HIT - Method: {request.method} ===")
+    
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
+        logger.info("OPTIONS request - returning 200")
         return Response(status=status.HTTP_200_OK)
     
     logger.info(f"=== PAYMENT VERIFICATION START ===")
     logger.info(f"Request data: {request.data}")
     logger.info(f"Request origin: {request.headers.get('Origin', 'No origin')}")
+    logger.info(f"Request headers: {dict(request.headers)}")
 
     try:
         # Extract and validate fields
