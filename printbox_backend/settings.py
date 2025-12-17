@@ -145,16 +145,28 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # -------------------------------------------------------------------------
 # CORS CONFIG (Correct + Razorpay safe)
 # -------------------------------------------------------------------------
-# Temporarily allow all origins for debugging
+# Allow all origins for now (can restrict later)
 CORS_ALLOW_ALL_ORIGINS = True
 
-# CORS_ALLOWED_ORIGINS = [
-#     "https://www.printbox3d.com",
-#     "https://printbox3d.com",
-#     "https://web-production-d7d11.up.railway.app",
-# ]
+# Explicit allowed origins (backup if ALLOW_ALL doesn't work)
+CORS_ALLOWED_ORIGINS = [
+    "https://www.printbox3d.com",
+    "https://printbox3d.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow all methods
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -167,7 +179,6 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "cache-control",
-    "x-requested-with",
 ]
 
 CORS_EXPOSE_HEADERS = [

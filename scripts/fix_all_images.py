@@ -1,12 +1,30 @@
+"""
+Script to fix missing product images in database.
+
+This script updates the 'image' field for products that have empty or incorrect image paths.
+Maps product slugs to their correct image paths in the media directory.
+
+Usage:
+    python scripts/fix_all_images.py
+
+Author: PrintBox3D Team
+Date: December 2025
+"""
+
 import os
 import django
 
+# Configure Django settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'printbox_backend.settings')
 django.setup()
 
 from api.models import Product
 
-# Image mappings based on product slugs
+# =============================================================================
+# IMAGE PATH MAPPINGS
+# =============================================================================
+# Maps product slugs to their corresponding primary image paths
+# Format: 'slug': 'products/category/product-name/image-filename.webp'
 image_mappings = {
     # Lamps
     'ocean-drift-lamp': 'products/lamps/ocean-drift-lamp/ocean-drift-lamp1.webp',
