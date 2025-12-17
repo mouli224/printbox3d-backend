@@ -19,6 +19,7 @@ from django.db.models import Q
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from functools import wraps
 import razorpay
 import hmac
 import hashlib
@@ -45,6 +46,19 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Custom decorator to force CORS headers on response
+def add_cors_headers(func):
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        response = func(request, *args, **kwargs)
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+    return wrapper
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -286,6 +300,7 @@ def get_razorpay_client():
     
     return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
+@add_cors_headers
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_order(request):
@@ -443,6 +458,7 @@ def create_order(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@add_cors_headers
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def verify_payment(request):
