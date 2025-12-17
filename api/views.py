@@ -10,6 +10,7 @@ This module contains all API endpoints for the PrintBox3D application including:
 - Customer testimonials
 """
 
+from django.http import JsonResponse, HttpResponse
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -620,6 +621,79 @@ def verify_payment(request):
         )
         return response
 
+
+
+def verify_payment_simple(request):
+    """
+    Simple Django view for payment verification - bypasses DRF middleware issues
+    """
+    # Add CORS headers to response
+    def add_cors(response):
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+    
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = HttpResponse()
+        return add_cors(response)
+    
+    # Only allow POST
+    if request.method != 'POST':
+        response = JsonResponse({'error': 'Method not allowed'}, status=405)
+        return add_cors(response)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        razorpay_order_id = data.get('razorpay_order_id', '').strip()
+        razorpay_payment_id = data.get('razorpay_payment_id', '').strip()
+        razorpay_signature = data.get('razorpay_signature', '').strip()
+        
+        if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
+            response = JsonResponse({'success': False, 'error': 'Missing fields'}, status=400)
+            return add_cors(response)
+        
+        # Find order
+        try:
+            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+        except Order.DoesNotExist:
+            response = JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+            return add_cors(response)
+        
+        # Verify signature
+        generated_signature = hmac.new(
+            settings.RAZORPAY_KEY_SECRET.encode(),
+            f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        if generated_signature != razorpay_signature:
+            order.status = "FAILED"
+            order.save()
+            response = JsonResponse({'success': False, 'error': 'Invalid signature'}, status=400)
+            return add_cors(response)
+        
+        # Update order
+        order.status = "PAID"
+        order.payment_status = "CAPTURED"
+        order.razorpay_payment_id = razorpay_payment_id
+        order.save()
+        
+        response = JsonResponse({
+            'success': True,
+            'order_id': order.order_id,
+            'status': 'PAID'
+        })
+        return add_cors(response)
+        
+    except Exception as e:
+        logger.error(f"Payment verification error: {e}", exc_info=True)
+        response = JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return add_cors(response)
 
 
 @api_view(['GET'])
