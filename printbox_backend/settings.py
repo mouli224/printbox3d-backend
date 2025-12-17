@@ -98,6 +98,11 @@ if database_url:
             conn_health_checks=True,
         )
     }
+    
+    # Add connection timeout
+    DATABASES["default"]["OPTIONS"] = {
+        "connect_timeout": 10,
+    }
 
     if is_migration:
         direct_url = config("DIRECT_DATABASE_URL", default="")

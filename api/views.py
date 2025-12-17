@@ -25,6 +25,7 @@ import razorpay
 import hmac
 import hashlib
 import logging
+import threading
 
 from .email_utils import (
     send_order_confirmation_email,
@@ -627,6 +628,8 @@ def verify_payment_simple(request):
     """
     Simple Django view for payment verification - bypasses DRF middleware issues
     """
+    logger.info(f"[VERIFY_SIMPLE] Function called - Method: {request.method}")
+    
     # Add CORS headers to response
     def add_cors(response):
         response['Access-Control-Allow-Origin'] = '*'
@@ -637,6 +640,7 @@ def verify_payment_simple(request):
     
     # Handle OPTIONS preflight
     if request.method == 'OPTIONS':
+        logger.info("[VERIFY_SIMPLE] Handling OPTIONS request")
         response = HttpResponse()
         return add_cors(response)
     
@@ -683,13 +687,18 @@ def verify_payment_simple(request):
         order.razorpay_payment_id = razorpay_payment_id
         order.save()
         
-        # Send confirmation email
-        try:
-            send_order_confirmation_email(order)
-            logger.info(f"Confirmation email sent for order {order.order_id}")
-        except Exception as email_error:
-            logger.error(f"Email sending error: {email_error}", exc_info=True)
-            # Don't fail the payment for email errors
+        # Send confirmation email in background thread (non-blocking)
+        def send_email_async():
+            try:
+                send_order_confirmation_email(order)
+                logger.info(f"Confirmation email sent for order {order.order_id}")
+            except Exception as email_error:
+                logger.error(f"Email sending error: {email_error}", exc_info=True)
+        
+        # Start email thread but don't wait for it
+        email_thread = threading.Thread(target=send_email_async)
+        email_thread.daemon = True
+        email_thread.start()
         
         response = JsonResponse({
             'success': True,
