@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "corsheaders",
+    "anymail",
 
     # Local apps
     "api",
@@ -248,78 +249,17 @@ SIMPLE_JWT = {
 }
 
 # -------------------------------------------------------------------------
-# EMAIL CONFIG (Mailgun SMTP)
+# EMAIL CONFIG (Mailgun HTTP API - More reliable than SMTP on Railway)
 # -------------------------------------------------------------------------
-EMAIL_HOST = config("EMAIL_HOST", default="smtp.mailgun.org")
-EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
-EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="printbox3d@sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org")
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")  # Set this in Railway Variables
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="info@printbox3d.com")
-EMAIL_TIMEOUT = 30  # 30 second timeout for email operations
+# Use Anymail with Mailgun HTTP API instead of SMTP
+ANYMAIL = {
+    "MAILGUN_API_KEY": config("MAILGUN_API_KEY", default=""),  # Set in Railway
+    "MAILGUN_SENDER_DOMAIN": config("MAILGUN_SENDER_DOMAIN", default="sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org"),
+}
 
-# Custom relaxed SSL backend for better compatibility
-import ssl
-import smtplib
-import socket
-from django.core.mail.backends.smtp import EmailBackend as BaseEmailBackend
-
-class CustomEmailBackend(BaseEmailBackend):
-    def open(self):
-        if self.connection:
-            return False
-        
-        try:
-            # Force IPv4 to avoid IPv6 issues
-            old_getaddrinfo = socket.getaddrinfo
-            def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
-                return old_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-            socket.getaddrinfo = getaddrinfo_ipv4_only
-            
-            try:
-                # Use SMTP_SSL for port 465, regular SMTP for port 587
-                if self.use_ssl:
-                    # SSL connection (port 465)
-                    context = ssl.create_default_context()
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
-                    self.connection = smtplib.SMTP_SSL(
-                        self.host, 
-                        self.port, 
-                        timeout=30,
-                        context=context
-                    )
-                else:
-                    # TLS connection (port 587)
-                    self.connection = smtplib.SMTP(
-                        self.host, 
-                        self.port, 
-                        timeout=30
-                    )
-                    if self.use_tls:
-                        context = ssl.create_default_context()
-                        context.check_hostname = False
-                        context.verify_mode = ssl.CERT_NONE
-                        self.connection.starttls(context=context)
-                
-                # Login
-                if self.username and self.password:
-                    self.connection.login(self.username, self.password)
-                
-                return True
-            finally:
-                # Restore original getaddrinfo
-                socket.getaddrinfo = old_getaddrinfo
-                
-        except Exception as e:
-            import logging
-            logging.error(f"SMTP connection failed: {e}", exc_info=True)
-            if not self.fail_silently:
-                raise
-            return False
-
-EMAIL_BACKEND = "printbox_backend.settings.CustomEmailBackend"
+EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="PrintBox3D <printbox3d@sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org>")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # -------------------------------------------------------------------------
 # RAZORPAY CONFIG
