@@ -262,6 +262,7 @@ EMAIL_TIMEOUT = 30  # 30 second timeout for email operations
 # Custom relaxed SSL backend for better compatibility
 import ssl
 import smtplib
+import socket
 from django.core.mail.backends.smtp import EmailBackend as BaseEmailBackend
 
 class CustomEmailBackend(BaseEmailBackend):
@@ -270,36 +271,47 @@ class CustomEmailBackend(BaseEmailBackend):
             return False
         
         try:
-            # Use SMTP_SSL for port 465, regular SMTP for port 587
-            if self.use_ssl:
-                # SSL connection (port 465)
-                context = ssl.create_default_context()
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
-                self.connection = smtplib.SMTP_SSL(
-                    self.host, 
-                    self.port, 
-                    timeout=30,
-                    context=context
-                )
-            else:
-                # TLS connection (port 587)
-                self.connection = smtplib.SMTP(
-                    self.host, 
-                    self.port, 
-                    timeout=30
-                )
-                if self.use_tls:
+            # Force IPv4 to avoid IPv6 issues
+            old_getaddrinfo = socket.getaddrinfo
+            def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+                return old_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+            socket.getaddrinfo = getaddrinfo_ipv4_only
+            
+            try:
+                # Use SMTP_SSL for port 465, regular SMTP for port 587
+                if self.use_ssl:
+                    # SSL connection (port 465)
                     context = ssl.create_default_context()
                     context.check_hostname = False
                     context.verify_mode = ssl.CERT_NONE
-                    self.connection.starttls(context=context)
-            
-            # Login
-            if self.username and self.password:
-                self.connection.login(self.username, self.password)
-            
-            return True
+                    self.connection = smtplib.SMTP_SSL(
+                        self.host, 
+                        self.port, 
+                        timeout=30,
+                        context=context
+                    )
+                else:
+                    # TLS connection (port 587)
+                    self.connection = smtplib.SMTP(
+                        self.host, 
+                        self.port, 
+                        timeout=30
+                    )
+                    if self.use_tls:
+                        context = ssl.create_default_context()
+                        context.check_hostname = False
+                        context.verify_mode = ssl.CERT_NONE
+                        self.connection.starttls(context=context)
+                
+                # Login
+                if self.username and self.password:
+                    self.connection.login(self.username, self.password)
+                
+                return True
+            finally:
+                # Restore original getaddrinfo
+                socket.getaddrinfo = old_getaddrinfo
+                
         except Exception as e:
             import logging
             logging.error(f"SMTP connection failed: {e}", exc_info=True)
