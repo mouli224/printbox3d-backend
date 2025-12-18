@@ -64,7 +64,14 @@ Best regards,
 PrintBox3D Team
 """
     
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"Attempting to send email to {order.customer_email}")
+        logger.info(f"SMTP Config: {settings.EMAIL_HOST}:{settings.EMAIL_PORT}, TLS={settings.EMAIL_USE_TLS}, SSL={getattr(settings, 'EMAIL_USE_SSL', False)}")
+        logger.info(f"From: {settings.DEFAULT_FROM_EMAIL}")
+        
         # Send email to customer
         send_mail(
             subject=subject,
@@ -74,12 +81,14 @@ PrintBox3D Team
             fail_silently=False,
         )
         
+        logger.info(f"Email sent successfully to {order.customer_email}")
+        
         # Send notification to admin
         send_order_notification_to_admin(order, items_details)
         
         return True
     except Exception as e:
-        print(f"Error sending order confirmation email: {e}")
+        logger.error(f"Error sending order confirmation email: {e}", exc_info=True)
         return False
 
 
