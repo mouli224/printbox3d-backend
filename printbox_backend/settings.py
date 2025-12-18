@@ -250,7 +250,6 @@ SIMPLE_JWT = {
 # -------------------------------------------------------------------------
 # EMAIL CONFIG (Hostinger SMTP)
 # -------------------------------------------------------------------------
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.hostinger.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
@@ -258,9 +257,9 @@ EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="info@printbox3d.com")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="Printbox3d@406")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="info@printbox3d.com")
-EMAIL_TIMEOUT = 10  # 10 second timeout for email operations
+EMAIL_TIMEOUT = 30  # 30 second timeout for email operations
 
-# Custom relaxed SSL backend
+# Custom relaxed SSL backend for better compatibility
 import ssl
 import smtplib
 from django.core.mail.backends.smtp import EmailBackend as BaseEmailBackend
@@ -269,24 +268,44 @@ class CustomEmailBackend(BaseEmailBackend):
     def open(self):
         if self.connection:
             return False
-        connection_params = {"timeout": self.timeout or 10} if self.timeout else {"timeout": 10}
+        
         try:
             # Use SMTP_SSL for port 465, regular SMTP for port 587
             if self.use_ssl:
-                self.connection = smtplib.SMTP_SSL(self.host, self.port, **connection_params)
+                # SSL connection (port 465)
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                self.connection = smtplib.SMTP_SSL(
+                    self.host, 
+                    self.port, 
+                    timeout=30,
+                    context=context
+                )
             else:
-                self.connection = smtplib.SMTP(self.host, self.port, **connection_params)
+                # TLS connection (port 587)
+                self.connection = smtplib.SMTP(
+                    self.host, 
+                    self.port, 
+                    timeout=30
+                )
                 if self.use_tls:
                     context = ssl.create_default_context()
                     context.check_hostname = False
                     context.verify_mode = ssl.CERT_NONE
                     self.connection.starttls(context=context)
+            
+            # Login
             if self.username and self.password:
                 self.connection.login(self.username, self.password)
+            
             return True
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.error(f"SMTP connection failed: {e}", exc_info=True)
             if not self.fail_silently:
                 raise
+            return False
 
 EMAIL_BACKEND = "printbox_backend.settings.CustomEmailBackend"
 
