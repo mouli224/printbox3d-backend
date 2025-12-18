@@ -248,14 +248,14 @@ SIMPLE_JWT = {
 }
 
 # -------------------------------------------------------------------------
-# EMAIL CONFIG (Hostinger SMTP)
+# EMAIL CONFIG (Mailgun SMTP)
 # -------------------------------------------------------------------------
-EMAIL_HOST = config("EMAIL_HOST", default="smtp.hostinger.com")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.mailgun.org")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="info@printbox3d.com")
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="Printbox3d@406")
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="printbox3d@sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")  # Set this in Railway Variables
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="info@printbox3d.com")
 EMAIL_TIMEOUT = 30  # 30 second timeout for email operations
 
