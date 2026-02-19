@@ -177,7 +177,7 @@ else:
 # Falls back to localhost only (safe for CI / dev environments).
 _cors_env = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000',
+    default='http://localhost:3000,http://127.0.0.1:3000,https://www.printbox3d.com,https://printbox3d.com',
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_env.split(',') if origin.strip()]
 
