@@ -56,17 +56,10 @@ class Product(models.Model):
     dimensions = models.CharField(max_length=100, blank=True, help_text="e.g., 12cm x 12cm x 10cm")
     weight = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True, help_text="Weight in grams")
     
-    # Images
-    image = models.ImageField(upload_to='products/')
-    image_2 = models.ImageField(upload_to='products/', blank=True, null=True)
-    image_3 = models.ImageField(upload_to='products/', blank=True, null=True)
-    
-    # Frontend image optimization
-    frontend_image = models.CharField(
-        max_length=200, 
-        blank=True,
-        help_text="Filename of optimized image in frontend (e.g., 'geometric_planter.jpg'). Leave blank to use uploaded image."
-    )
+    # Images — store S3 URLs directly (paste from AWS S3 console or copied after upload)
+    image_url   = models.URLField(max_length=500, blank=True, help_text='Primary image — paste the full S3 URL here')
+    image_url_2 = models.URLField(max_length=500, blank=True, help_text='Second image URL (optional)')
+    image_url_3 = models.URLField(max_length=500, blank=True, help_text='Third image URL (optional)')
     
     # Stock and availability
     stock_quantity = models.PositiveIntegerField(default=0)
@@ -255,12 +248,15 @@ class Order(models.Model):
     # Tracking
     tracking_number = models.CharField(max_length=100, blank=True)
     admin_notes = models.TextField(blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at'], name='order_status_created_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.order_id:

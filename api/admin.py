@@ -39,8 +39,8 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('color', 'dimensions', 'weight')
         }),
         ('Images', {
-            'fields': ('image', 'image_2', 'image_3', 'frontend_image'),
-            'description': 'Upload images or specify frontend image filename (e.g., geometric_planter.jpg)'
+            'fields': ('image_url', 'image_url_2', 'image_url_3'),
+            'description': 'Paste the full S3 URL for each image (e.g. https://printbox-media.s3.ap-south-1.amazonaws.com/products/my-product.jpg)'
         }),
         ('SEO', {
             'fields': ('meta_description',),

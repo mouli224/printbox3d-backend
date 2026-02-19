@@ -16,23 +16,19 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from functools import wraps
-import razorpay
-import hmac
-import hashlib
 import logging
 import threading
+import json
 
+from .services.razorpay_service import RazorpayService
+from .services.s3_service import S3Service
 from .email_utils import (
     send_order_confirmation_email,
     send_custom_order_notification,
     send_contact_message_notification
 )
-
 from .models import (
     Category, Material, Product, CustomOrder,
     ContactMessage, Newsletter, Testimonial,
@@ -43,31 +39,10 @@ from .serializers import (
     ProductListSerializer, ProductDetailSerializer,
     CustomOrderSerializer, ContactMessageSerializer,
     NewsletterSerializer, TestimonialSerializer,
-    OrderSerializer, PaymentSerializer, CreateOrderSerializer,
-    PaymentVerificationSerializer
+    OrderSerializer, PaymentSerializer, CreateOrderSerializer
 )
 
 logger = logging.getLogger(__name__)
-
-
-# Custom decorator to force CORS headers on response
-def add_cors_headers(func):
-    @wraps(func)
-    def wrapper(request, *args, **kwargs):
-        logger.info(f"CORS decorator - Before function call")
-        try:
-            response = func(request, *args, **kwargs)
-            logger.info(f"CORS decorator - Got response, adding headers")
-            response['Access-Control-Allow-Origin'] = '*'
-            response['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-            response['Access-Control-Allow-Credentials'] = 'true'
-            logger.info(f"CORS decorator - Headers added, returning")
-            return response
-        except Exception as e:
-            logger.error(f"CORS decorator - Exception: {e}", exc_info=True)
-            raise
-    return wrapper
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -293,23 +268,6 @@ class TestimonialViewSet(viewsets.ReadOnlyModelViewSet):
 # PAYMENT & ORDER PROCESSING
 # ============================================================================
 
-def get_razorpay_client():
-    """
-    Initialize and return Razorpay client.
-    
-    Returns:
-        razorpay.Client: Configured Razorpay client instance
-        
-    Raises:
-        ValueError: If Razorpay credentials are not configured
-    """
-    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-        logger.error("Razorpay credentials not configured in environment variables")
-        raise ValueError("Razorpay credentials not configured")
-    
-    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-
-@add_cors_headers
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_order(request):
@@ -382,7 +340,7 @@ def create_order(request):
                 'product': product,
                 'product_name': product.name,
                 'product_price': product.price,
-                'product_image': request.build_absolute_uri(product.image.url) if product.image else '',
+                'product_image': product.image_url,
                 'quantity': quantity,
                 'subtotal': subtotal
             })
@@ -412,40 +370,36 @@ def create_order(request):
         product = item_data.pop('product')
         OrderItem.objects.create(order=order, product=product, **item_data)
     
-    # Create Razorpay order
+    # Create Razorpay order via service layer
     try:
-        # Get Razorpay client
-        razorpay_client = get_razorpay_client()
-        
-        razorpay_order = razorpay_client.order.create({
-            'amount': int(total_amount * 100),  # Amount in paise
-            'currency': 'INR',
-            'receipt': order.order_id,
-            'payment_capture': 1  # Auto capture payment
-        })
-        
-        # Save Razorpay order ID
-        order.razorpay_order_id = razorpay_order['id']
-        order.save()
-        
+        rz_order = RazorpayService.create_order(
+            amount_inr=float(total_amount),
+            receipt=order.order_id,
+            notes={'internal_order_id': order.order_id},
+        )
+
+        # Persist Razorpay order ID
+        order.razorpay_order_id = rz_order['id']
+        order.save(update_fields=['razorpay_order_id'])
+
         # Create payment record
         Payment.objects.create(
             order=order,
-            razorpay_order_id=razorpay_order['id'],
+            razorpay_order_id=rz_order['id'],
             amount=total_amount,
             currency='INR',
-            status='CREATED'
+            status='CREATED',
         )
-        
+
         return Response({
             'order_id': order.order_id,
-            'razorpay_order_id': razorpay_order['id'],
+            'razorpay_order_id': rz_order['id'],
             'razorpay_key_id': settings.RAZORPAY_KEY_ID,
-            'amount': int(total_amount * 100),
+            'amount': rz_order['amount'],    # already in paise from service
             'currency': 'INR',
             'customer_name': order.customer_name,
             'customer_email': order.customer_email,
-            'customer_phone': order.customer_phone
+            'customer_phone': order.customer_phone,
         }, status=status.HTTP_201_CREATED)
         
     except ValueError as ve:
@@ -467,169 +421,16 @@ def create_order(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@add_cors_headers
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
-def verify_payment(request):
-    """
-    Verify Razorpay payment signature and update order status.
-    This endpoint is called after successful Razorpay payment.
-    """
-    logger.info(f"=== VERIFY PAYMENT ENDPOINT HIT - Method: {request.method} ===")
-    
-    # Handle preflight OPTIONS request
-    if request.method == 'OPTIONS':
-        logger.info("OPTIONS request - returning 200")
-        return Response(status=status.HTTP_200_OK)
-    
-    logger.info(f"=== PAYMENT VERIFICATION START ===")
-    logger.info(f"Request data: {request.data}")
-    logger.info(f"Request origin: {request.headers.get('Origin', 'No origin')}")
-    logger.info(f"Request headers: {dict(request.headers)}")
-
-    try:
-        # Extract and validate fields
-        razorpay_order_id = request.data.get("razorpay_order_id", "").strip()
-        razorpay_payment_id = request.data.get("razorpay_payment_id", "").strip()
-        razorpay_signature = request.data.get("razorpay_signature", "").strip()
-
-        if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
-            logger.error("Missing required Razorpay fields")
-            response = Response(
-                {
-                    "success": False,
-                    "error": "Missing required Razorpay fields",
-                    "received": {
-                        "order_id": bool(razorpay_order_id),
-                        "payment_id": bool(razorpay_payment_id),
-                        "signature": bool(razorpay_signature)
-                    }
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            return response
-
-        # Find order using Razorpay Order ID
-        try:
-            order = Order.objects.select_related('payment').prefetch_related('items__product').get(
-                razorpay_order_id=razorpay_order_id
-            )
-            logger.info(f"Order found: {order.order_id}, Current status: {order.status}")
-        except Order.DoesNotExist:
-            logger.error(f"Order not found for razorpay_order_id: {razorpay_order_id}")
-            response = Response(
-                {"success": False, "error": "Order not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-            return response
-
-        # Verify signature
-        try:
-            generated_signature = hmac.new(
-                settings.RAZORPAY_KEY_SECRET.encode(),
-                f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
-                hashlib.sha256
-            ).hexdigest()
-
-            logger.info(f"Signature verification - Generated: {generated_signature[:20]}...")
-            logger.info(f"Signature verification - Received: {razorpay_signature[:20]}...")
-
-            if generated_signature != razorpay_signature:
-                logger.error("Signature mismatch!")
-                
-                # Mark as failed
-                order.status = "FAILED"
-                order.payment_status = "FAILED"
-                order.save(update_fields=["status", "payment_status"])
-
-                if hasattr(order, 'payment') and order.payment:
-                    order.payment.status = "FAILED"
-                    order.payment.error_description = "Signature verification failed"
-                    order.payment.save(update_fields=["status", "error_description"])
-
-                response = Response(
-                    {"success": False, "error": "Signature verification failed"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-                return response
-
-        except Exception as sig_error:
-            logger.error(f"Signature verification error: {sig_error}", exc_info=True)
-            response = Response(
-                {"success": False, "error": "Signature verification error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-            return response
-
-        # SUCCESS - Update order status
-        logger.info("Signature verified successfully! Updating order...")
-        
-        order.status = "PAID"
-        order.payment_status = "CAPTURED"
-        order.razorpay_payment_id = razorpay_payment_id
-        order.razorpay_signature = razorpay_signature
-        order.save(update_fields=["status", "payment_status", "razorpay_payment_id", "razorpay_signature"])
-
-        # Update payment record
-        if hasattr(order, 'payment') and order.payment:
-            order.payment.status = "CAPTURED"
-            order.payment.razorpay_payment_id = razorpay_payment_id
-            order.payment.razorpay_signature = razorpay_signature
-            order.payment.save(update_fields=["status", "razorpay_payment_id", "razorpay_signature"])
-
-        # Reduce stock
-        try:
-            for item in order.items.all():
-                if item.product and item.product.stock_quantity >= item.quantity:
-                    item.product.stock_quantity -= item.quantity
-                    item.product.save(update_fields=["stock_quantity"])
-                    logger.info(f"Stock reduced for {item.product.name}: -{item.quantity}")
-        except Exception as stock_error:
-            logger.error(f"Stock reduction error: {stock_error}", exc_info=True)
-            # Don't fail the payment for stock errors
-
-        # Send confirmation email (async, don't wait)
-        try:
-            send_order_confirmation_email(order)
-            logger.info("Confirmation email sent")
-        except Exception as email_error:
-            logger.error(f"Email sending error: {email_error}")
-            # Don't fail the payment for email errors
-
-        logger.info(f"=== PAYMENT VERIFICATION SUCCESS for order {order.order_id} ===")
-        
-        response = Response(
-            {
-                "success": True,
-                "order_id": order.order_id,
-                "status": "PAID",
-                "message": "Payment verified successfully"
-            },
-            status=status.HTTP_200_OK
-        )
-        return response
-
-    except Exception as e:
-        logger.error(f"=== PAYMENT VERIFICATION FAILED ===")
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        response = Response(
-            {
-                "success": False,
-                "error": "Payment verification failed",
-                "details": str(e) if settings.DEBUG else "Internal server error"
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-        return response
-
-
-
+# ============================================================================
+# PAYMENT VERIFICATION (plain Django view - avoids DRF/CSRF middleware issues)
+# ============================================================================
 def verify_payment_simple(request):
     """
-    Simple Django view for payment verification - bypasses DRF middleware issues
+    Verify Razorpay payment signature. Uses plain Django view to avoid
+    DRF middleware conflicts with CSRF-exempt payment callbacks.
     """
-    logger.info(f"[VERIFY_SIMPLE] Function called - Method: {request.method}")
-    
+    logger.info(f"[VERIFY] Method: {request.method}")
+
     # Add CORS headers to response
     def add_cors(response):
         response['Access-Control-Allow-Origin'] = '*'
@@ -655,7 +456,7 @@ def verify_payment_simple(request):
         
         razorpay_order_id = data.get('razorpay_order_id', '').strip()
         razorpay_payment_id = data.get('razorpay_payment_id', '').strip()
-        razorpay_signature = data.get('razorpay_signature', '').strip()
+        razorpay_signature  = data.get('razorpay_signature', '').strip()
         
         if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
             response = JsonResponse({'success': False, 'error': 'Missing fields'}, status=400)
@@ -668,16 +469,13 @@ def verify_payment_simple(request):
             response = JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
             return add_cors(response)
         
-        # Verify signature
-        generated_signature = hmac.new(
-            settings.RAZORPAY_KEY_SECRET.encode(),
-            f"{razorpay_order_id}|{razorpay_payment_id}".encode(),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if generated_signature != razorpay_signature:
-            order.status = "FAILED"
-            order.save()
+        # Verify signature via service layer (HMAC-SHA256)
+        if not RazorpayService.verify_signature(
+            razorpay_order_id, razorpay_payment_id, razorpay_signature
+        ):
+            order.status = 'FAILED'
+            order.payment_status = 'FAILED'
+            order.save(update_fields=['status', 'payment_status'])
             response = JsonResponse({'success': False, 'error': 'Invalid signature'}, status=400)
             return add_cors(response)
         
@@ -775,13 +573,114 @@ def get_user_orders(request):
     serializer = OrderSerializer(all_orders, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
-@api_view(["GET"])
-def debug_settings(request):
-    from django.conf import settings
+
+# ============================================================================
+# S3 PRESIGNED UPLOAD URL
+# ============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_s3_upload_url(request):
+    """
+    Return a presigned S3 upload URL so the client can PUT a file directly to
+    S3 without the file passing through Django.
+
+    Body:
+        folder      – destination folder in the bucket (default: 'products')
+        file_name   – original filename (used to derive extension)
+        content_type – MIME type of the file
+        file_size   – size in bytes (used for validation)
+    """
+    if not S3Service.is_configured():
+        return Response({'error': 'S3 storage is not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    folder       = request.data.get('folder', 'products')
+    file_name    = request.data.get('file_name', '')
+    content_type = request.data.get('content_type', '')
+    file_size    = int(request.data.get('file_size', 0))
+
+    if not file_name or not content_type:
+        return Response({'error': 'file_name and content_type are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate MIME type and size
+    type_ok, type_err = S3Service.validate_file_type(folder, content_type)
+    if not type_ok:
+        return Response({'error': type_err}, status=status.HTTP_400_BAD_REQUEST)
+
+    size_ok, size_err = S3Service.validate_file_size(folder, file_size)
+    if not size_ok:
+        return Response({'error': size_err}, status=status.HTTP_400_BAD_REQUEST)
+
+    result = S3Service.generate_presigned_upload_url(
+        folder=folder,
+        file_name=file_name,
+        content_type=content_type,
+    )
+    if result is None:
+        logger.error('S3Service failed to generate presigned URL')
+        return Response({'error': 'Could not generate upload URL'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    upload_url, file_url, s3_key = result
     return Response({
-        "allowed_hosts": settings.ALLOWED_HOSTS,
-        "cors_allowed": getattr(settings, "CORS_ALLOWED_ORIGINS", "NOT FOUND"),
-        "cors_all": getattr(settings, "CORS_ALLOW_ALL_ORIGINS", "NOT FOUND"),
-        "debug": settings.DEBUG,
-        "cors_middleware": "corsheaders.middleware.CorsMiddleware" in settings.MIDDLEWARE
-    })
+        'upload_url': upload_url,
+        'file_url':   file_url,
+        's3_key':     s3_key,
+    }, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# RAZORPAY WEBHOOK
+# ============================================================================
+
+@csrf_exempt
+def razorpay_webhook(request):
+    """
+    Receives Razorpay event webhooks and reconciles payment / order status.
+    Must be registered with CSRF exempt because Razorpay sends a raw POST.
+    """
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    raw_body   = request.body
+    header_sig = request.headers.get('X-Razorpay-Signature', '')
+
+    if not RazorpayService.verify_webhook_signature(raw_body, header_sig):
+        logger.warning('Razorpay webhook: invalid signature')
+        return HttpResponse(status=400)
+
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        return HttpResponse(status=400)
+
+    event = payload.get('event', '')
+    logger.info('Razorpay webhook received: %s', event)
+
+    if event == 'payment.captured':
+        rz_order_id  = payload['payload']['payment']['entity'].get('order_id', '')
+        rz_payment_id = payload['payload']['payment']['entity'].get('id', '')
+        try:
+            order = Order.objects.get(razorpay_order_id=rz_order_id)
+            if order.status not in ('CONFIRMED', 'SHIPPED', 'DELIVERED'):
+                order.status         = 'CONFIRMED'
+                order.payment_status = 'PAID'
+                order.save(update_fields=['status', 'payment_status'])
+                Payment.objects.filter(order=order).update(
+                    status='CAPTURED', razorpay_payment_id=rz_payment_id
+                )
+        except Order.DoesNotExist:
+            logger.error('Webhook: order not found for razorpay_order_id=%s', rz_order_id)
+
+    elif event == 'payment.failed':
+        rz_order_id = payload['payload']['payment']['entity'].get('order_id', '')
+        try:
+            order = Order.objects.get(razorpay_order_id=rz_order_id)
+            if order.status not in ('CONFIRMED', 'SHIPPED', 'DELIVERED'):
+                order.status         = 'FAILED'
+                order.payment_status = 'FAILED'
+                order.save(update_fields=['status', 'payment_status'])
+                Payment.objects.filter(order=order).update(status='FAILED')
+        except Order.DoesNotExist:
+            logger.error('Webhook: order not found for razorpay_order_id=%s', rz_order_id)
+
+    return HttpResponse(status=200)

@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "corsheaders",
-    "anymail",
+    "storages",
 
     # Local apps
     "api",
@@ -137,34 +137,52 @@ USE_I18N = True
 USE_TZ = True
 
 # -------------------------------------------------------------------------
-# STATIC & MEDIA FILES
+# STATIC FILES (served by WhiteNoise on Railway)
 # -------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # -------------------------------------------------------------------------
-# CORS CONFIG (Correct + Razorpay safe)
+# MEDIA / FILE STORAGE — S3 in production, local in development
 # -------------------------------------------------------------------------
-# Allow all origins for now (can restrict later)
-CORS_ALLOW_ALL_ORIGINS = True
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="printbox-media")
+AWS_S3_REGION_NAME = config("AWS_S3_REGION_NAME", default="ap-south-1")
 
-# Explicit allowed origins (backup if ALLOW_ALL doesn't work)
-CORS_ALLOWED_ORIGINS = [
-    "https://www.printbox3d.com",
-    "https://printbox3d.com",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+if AWS_ACCESS_KEY_ID:
+    # --- Production: store all uploaded files in S3 ---
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+
+    AWS_S3_FILE_OVERWRITE = False          # never silently overwrite existing files
+    AWS_DEFAULT_ACL = "public-read"        # files are publicly readable (no signed URLs needed)
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",   # browser caches images for 1 day
+    }
+    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    MEDIA_ROOT = ""                        # not used when S3 is active
+else:
+    # --- Development: use local media folder ---
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
+
+# -------------------------------------------------------------------------
+# CORS CONFIG
+# -------------------------------------------------------------------------
+# Read allowed origins from environment (comma-separated).
+# Falls back to localhost only (safe for CI / dev environments).
+_cors_env = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+)
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_env.split(',') if origin.strip()]
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Allow all methods
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -175,34 +193,24 @@ CORS_ALLOW_METHODS = [
 ]
 
 CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-    "cache-control",
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'cache-control',
 ]
 
 CORS_EXPOSE_HEADERS = [
-    "content-type",
-    "x-csrftoken",
+    'content-type',
+    'x-csrftoken',
 ]
 
-CORS_ALLOW_METHODS = [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-    "HEAD",
-]
-
-CORS_PREFLIGHT_MAX_AGE = 86400  # Cache preflight for 24 hours
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 h
 
 CSRF_TRUSTED_ORIGINS = [
     "https://web-production-d7d11.up.railway.app",
@@ -212,12 +220,21 @@ CSRF_TRUSTED_ORIGINS = [
     "https://printbox3d.in",
 ]
 
-
-# Exempt payment verification from CSRF (uses Razorpay signature instead)
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_SAMESITE = 'None'
+# Cookie security
+CSRF_COOKIE_SECURE    = True
+CSRF_COOKIE_SAMESITE  = 'None'
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'None'
+
+# -------------------------------------------------------------------------
+# HTTPS / SECURITY HEADERS (Railway runs behind TLS terminating proxy)
+# -------------------------------------------------------------------------
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_HSTS_SECONDS     = 31536000   # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD     = True
+SECURE_CONTENT_TYPE_NO_SNIFF = True
+X_FRAME_OPTIONS         = 'DENY'
 
 # -------------------------------------------------------------------------
 # DRF CONFIG
@@ -249,20 +266,25 @@ SIMPLE_JWT = {
 }
 
 # -------------------------------------------------------------------------
-# EMAIL CONFIG (Mailgun HTTP API - More reliable than SMTP on Railway)
+# EMAIL CONFIG (Standard SMTP)
 # -------------------------------------------------------------------------
-# Use Anymail with Mailgun HTTP API instead of SMTP
-ANYMAIL = {
-    "MAILGUN_API_KEY": config("MAILGUN_API_KEY", default=""),  # Set in Railway
-    "MAILGUN_SENDER_DOMAIN": config("MAILGUN_SENDER_DOMAIN", default="sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org"),
-}
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend"  # Prints to console in development
+)
 
-EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="PrintBox3D <printbox3d@sandbox2385eaf1e38341cbbd70502b7e54ce7e.mailgun.org>")
+# SMTP Configuration (optional - for production)
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="PrintBox3D <noreply@printbox3d.com>")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # -------------------------------------------------------------------------
 # RAZORPAY CONFIG
 # -------------------------------------------------------------------------
-RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID", default="")
-RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET", default="")
+RAZORPAY_KEY_ID             = config('RAZORPAY_KEY_ID', default='')
+RAZORPAY_KEY_SECRET         = config('RAZORPAY_KEY_SECRET', default='')
+RAZORPAY_WEBHOOK_SECRET     = config('RAZORPAY_WEBHOOK_SECRET', default='')
