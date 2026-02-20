@@ -22,7 +22,7 @@ DEBUG = config("DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="localhost,127.0.0.1,www.printbox3d.com,printbox3d.com,web-production-d7d11.up.railway.app",
+    default="localhost,127.0.0.1,www.printbox3d.com,printbox3d.com,www.printbox3d.in,printbox3d.in,web-production-d7d11.up.railway.app",
     cast=Csv(),
 )
 
@@ -177,7 +177,7 @@ else:
 # Falls back to localhost only (safe for CI / dev environments).
 _cors_env = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,https://www.printbox3d.com,https://printbox3d.com',
+    default='http://localhost:3000,http://127.0.0.1:3000,https://www.printbox3d.com,https://printbox3d.com,https://www.printbox3d.in,https://printbox3d.in',
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_env.split(',') if origin.strip()]
 
