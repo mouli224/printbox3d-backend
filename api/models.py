@@ -9,6 +9,7 @@ class Category(models.Model):
     slug = models.SlugField(max_length=100, unique=True, blank=True)
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to='categories/', blank=True, null=True)
+    image_url = models.URLField(max_length=500, blank=True, help_text='Category image — paste the full S3 URL here (preferred over file upload)')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

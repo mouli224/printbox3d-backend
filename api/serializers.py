@@ -8,13 +8,25 @@ from .models import (
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
+    image_display_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description', 'image', 'product_count', 'created_at']
+        fields = ['id', 'name', 'slug', 'description', 'image_url', 'image', 'image_display_url', 'product_count', 'created_at']
     
     def get_product_count(self, obj):
         return obj.products.filter(is_available=True).count()
+
+    def get_image_display_url(self, obj):
+        """Returns image_url if set, otherwise the uploaded image URL."""
+        if obj.image_url:
+            return obj.image_url
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 
 class MaterialSerializer(serializers.ModelSerializer):
