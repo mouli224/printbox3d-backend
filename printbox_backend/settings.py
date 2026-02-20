@@ -174,12 +174,18 @@ else:
 # CORS CONFIG
 # -------------------------------------------------------------------------
 # Read allowed origins from environment (comma-separated).
-# Falls back to localhost only (safe for CI / dev environments).
-_cors_env = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,https://www.printbox3d.com,https://printbox3d.com,https://www.printbox3d.in,https://printbox3d.in',
-)
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_env.split(',') if origin.strip()]
+# Always merged with the hardcoded set so new domains don't need a Railway env-var update.
+_cors_env = config('CORS_ALLOWED_ORIGINS', default='')
+_cors_from_env = [o.strip() for o in _cors_env.split(',') if o.strip()]
+_cors_always = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://www.printbox3d.com',
+    'https://printbox3d.com',
+    'https://www.printbox3d.in',
+    'https://printbox3d.in',
+]
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(_cors_always + _cors_from_env))  # deduped, always-list first
 
 CORS_ALLOW_CREDENTIALS = True
 
