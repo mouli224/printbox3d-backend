@@ -2,14 +2,43 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.validators import UniqueValidator
+from .models import UserProfile
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer for User model"""
+    """Serializer for User model — includes flat profile fields."""
+    phone = serializers.SerializerMethodField()
+    shipping_address = serializers.SerializerMethodField()
+    shipping_city = serializers.SerializerMethodField()
+    shipping_state = serializers.SerializerMethodField()
+    shipping_pincode = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name',
+                  'phone', 'shipping_address', 'shipping_city', 'shipping_state', 'shipping_pincode']
         read_only_fields = ['id']
+
+    def _profile(self, obj):
+        try:
+            return obj.profile
+        except UserProfile.DoesNotExist:
+            return None
+
+    def get_phone(self, obj):
+        p = self._profile(obj); return p.phone if p else ''
+
+    def get_shipping_address(self, obj):
+        p = self._profile(obj); return p.shipping_address if p else ''
+
+    def get_shipping_city(self, obj):
+        p = self._profile(obj); return p.shipping_city if p else ''
+
+    def get_shipping_state(self, obj):
+        p = self._profile(obj); return p.shipping_state if p else ''
+
+    def get_shipping_pincode(self, obj):
+        p = self._profile(obj); return p.shipping_pincode if p else ''
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -46,10 +75,13 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
-        phone = validated_data.pop('phone', None)  # Store phone for later if needed
+        phone = validated_data.pop('phone', '')
         user = User.objects.create_user(**validated_data)
-        # Note: Phone is not stored in User model by default. 
-        # Add to user profile model if you create one later.
+        # Save phone to profile (profile is auto-created by signal)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        if phone:
+            profile.phone = phone
+            profile.save(update_fields=['phone'])
         return user
 
 

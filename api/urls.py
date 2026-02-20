@@ -9,7 +9,7 @@ from .views import (
     create_order, verify_payment_simple, get_order_status, payment_failed,
     get_user_orders, get_s3_upload_url, razorpay_webhook, validate_coupon,
 )
-from .auth_views import register, login, logout, get_user_profile, update_user_profile
+from .auth_views import register, login, logout, get_user_profile, update_user_profile, forgot_password, reset_password
 
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
@@ -30,6 +30,8 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/profile/', get_user_profile, name='profile'),
     path('auth/profile/update/', update_user_profile, name='profile_update'),
+    path('auth/forgot-password/', forgot_password, name='forgot_password'),
+    path('auth/reset-password/', reset_password, name='reset_password'),
 
     # Payment endpoints
     path('orders/create/', create_order, name='create_order'),

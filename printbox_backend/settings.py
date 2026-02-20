@@ -288,3 +288,9 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 RAZORPAY_KEY_ID             = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET         = config('RAZORPAY_KEY_SECRET', default='')
 RAZORPAY_WEBHOOK_SECRET     = config('RAZORPAY_WEBHOOK_SECRET', default='')
+
+# -------------------------------------------------------------------------
+# FRONTEND URL (used for password reset links in emails)
+# -------------------------------------------------------------------------
+FRONTEND_URL = config('FRONTEND_URL', default='https://www.printbox3d.com')
+
