@@ -7,7 +7,7 @@ from .views import (
     CustomOrderViewSet, ContactMessageViewSet,
     NewsletterViewSet, TestimonialViewSet,
     create_order, verify_payment_simple, get_order_status, payment_failed,
-    get_user_orders, get_s3_upload_url, razorpay_webhook,
+    get_user_orders, get_s3_upload_url, razorpay_webhook, validate_coupon,
 )
 from .auth_views import register, login, logout, get_user_profile, update_user_profile
 
@@ -33,6 +33,7 @@ urlpatterns = [
 
     # Payment endpoints
     path('orders/create/', create_order, name='create_order'),
+    path('coupons/validate/', validate_coupon, name='validate_coupon'),
     path('orders/verify-payment/', csrf_exempt(verify_payment_simple), name='verify_payment'),
     path('orders/payment-failed/', payment_failed, name='payment_failed'),
     path('orders/user/me/', get_user_orders, name='user_orders'),

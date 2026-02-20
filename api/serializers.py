@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Category, Material, Product, CustomOrder,
     ContactMessage, Newsletter, Testimonial,
-    Order, OrderItem, Payment
+    Order, OrderItem, Payment, Coupon
 )
 
 
@@ -129,6 +129,13 @@ class OrderItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class CouponSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Coupon
+        fields = ['code', 'discount_type', 'discount_value', 'min_order_amount',
+                  'max_discount_amount', 'is_active', 'expiry_date']
+
+
 class OrderSerializer(serializers.ModelSerializer):
     """Serializer for creating and viewing orders"""
     items = OrderItemSerializer(many=True)
@@ -138,7 +145,8 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order_id', 'customer_name', 'customer_email', 'customer_phone',
             'shipping_address', 'shipping_city', 'shipping_state', 'shipping_pincode',
-            'status', 'total_amount', 'payment_status', 'tracking_number',
+            'status', 'total_amount', 'discount_amount', 'coupon_code',
+            'payment_status', 'tracking_number',
             'items', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'order_id', 'status', 'payment_status', 'created_at', 'updated_at']
@@ -181,6 +189,7 @@ class CreateOrderSerializer(serializers.Serializer):
             child=serializers.CharField()
         )
     )
+    coupon_code = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
     
     def validate_items(self, value):
         """Validate cart items"""

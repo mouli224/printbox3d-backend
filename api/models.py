@@ -200,6 +200,55 @@ class Testimonial(models.Model):
         return f"Testimonial from {self.name}"
 
 
+class Coupon(models.Model):
+    """Discount coupons"""
+    DISCOUNT_TYPE_CHOICES = [
+        ('PERCENTAGE', 'Percentage'),
+        ('FLAT', 'Flat Amount'),
+    ]
+
+    code = models.CharField(max_length=50, unique=True)
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES, default='PERCENTAGE')
+    discount_value = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text='Percentage (e.g. 10 = 10%) or flat amount in ₹'
+    )
+    min_order_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text='Minimum cart total required to use this coupon'
+    )
+    max_discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Maximum discount cap for percentage coupons (leave blank for no cap)'
+    )
+    max_uses = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Maximum number of times this coupon can be used (blank = unlimited)'
+    )
+    times_used = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    expiry_date = models.DateField(null=True, blank=True, help_text='Leave blank for no expiry')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.code
+
+    def calculate_discount(self, cart_total):
+        """Return the discount amount for a given cart total."""
+        from decimal import Decimal
+        cart_total = Decimal(str(cart_total))
+        if self.discount_type == 'PERCENTAGE':
+            discount = cart_total * (self.discount_value / Decimal('100'))
+            if self.max_discount_amount:
+                discount = min(discount, self.max_discount_amount)
+        else:
+            discount = min(self.discount_value, cart_total)
+        return discount.quantize(Decimal('0.01'))
+
+
 class Order(models.Model):
     """Customer orders"""
     
@@ -239,6 +288,8 @@ class Order(models.Model):
     # Order details
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    coupon_code = models.CharField(max_length=50, blank=True)
     
     # Payment tracking
     razorpay_order_id = models.CharField(max_length=100, blank=True, null=True)

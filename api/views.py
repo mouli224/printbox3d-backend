@@ -32,14 +32,14 @@ from .email_utils import (
 from .models import (
     Category, Material, Product, CustomOrder,
     ContactMessage, Newsletter, Testimonial,
-    Order, OrderItem, Payment
+    Order, OrderItem, Payment, Coupon
 )
 from .serializers import (
     CategorySerializer, MaterialSerializer,
     ProductListSerializer, ProductDetailSerializer,
     CustomOrderSerializer, ContactMessageSerializer,
     NewsletterSerializer, TestimonialSerializer,
-    OrderSerializer, PaymentSerializer, CreateOrderSerializer
+    OrderSerializer, PaymentSerializer, CreateOrderSerializer, CouponSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -270,6 +270,66 @@ class TestimonialViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def validate_coupon(request):
+    """
+    Validate a coupon code against the current cart total.
+
+    Request Body:
+        code        - The coupon code string
+        cart_total  - Current cart total (numeric)
+
+    Returns:
+        valid           - true/false
+        discount_amount - Amount discounted (if valid)
+        message         - Error message (if invalid)
+        coupon          - Coupon details (if valid)
+    """
+    from decimal import Decimal, InvalidOperation
+    from django.utils import timezone
+
+    code = request.data.get('code', '').strip().upper()
+    cart_total_raw = request.data.get('cart_total', 0)
+
+    if not code:
+        return Response({'valid': False, 'message': 'Please enter a coupon code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        cart_total = Decimal(str(cart_total_raw))
+    except InvalidOperation:
+        return Response({'valid': False, 'message': 'Invalid cart total.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        coupon = Coupon.objects.get(code=code, is_active=True)
+    except Coupon.DoesNotExist:
+        return Response({'valid': False, 'message': 'Invalid or expired coupon code.'})
+
+    # Check expiry
+    if coupon.expiry_date and coupon.expiry_date < timezone.now().date():
+        return Response({'valid': False, 'message': 'This coupon has expired.'})
+
+    # Check max uses
+    if coupon.max_uses is not None and coupon.times_used >= coupon.max_uses:
+        return Response({'valid': False, 'message': 'This coupon has reached its usage limit.'})
+
+    # Check minimum order amount
+    if cart_total < coupon.min_order_amount:
+        return Response({
+            'valid': False,
+            'message': f'Minimum order amount of ₹{coupon.min_order_amount} required for this coupon.'
+        })
+
+    discount_amount = coupon.calculate_discount(cart_total)
+
+    return Response({
+        'valid': True,
+        'discount_amount': str(discount_amount),
+        'coupon': CouponSerializer(coupon).data,
+        'message': f'Coupon applied! You save ₹{discount_amount}.'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def create_order(request):
     """
     Create new order and initiate Razorpay payment.
@@ -350,6 +410,28 @@ def create_order(request):
                 'error': f'Product with ID {item["product_id"]} not found'
             }, status=status.HTTP_404_NOT_FOUND)
     
+    # Apply coupon discount if provided
+    coupon_code_input = data.get('coupon_code', '').strip().upper()
+    discount_amount = 0
+    applied_coupon = None
+
+    if coupon_code_input:
+        from decimal import Decimal
+        from django.utils import timezone
+        try:
+            applied_coupon = Coupon.objects.get(code=coupon_code_input, is_active=True)
+            # Re-validate before applying
+            expired = applied_coupon.expiry_date and applied_coupon.expiry_date < timezone.now().date()
+            maxed = applied_coupon.max_uses is not None and applied_coupon.times_used >= applied_coupon.max_uses
+            below_min = total_amount < applied_coupon.min_order_amount
+            if not expired and not maxed and not below_min:
+                discount_amount = applied_coupon.calculate_discount(total_amount)
+                total_amount = max(Decimal('0'), total_amount - discount_amount)
+            else:
+                applied_coupon = None  # invalid at this point, ignore silently
+        except Coupon.DoesNotExist:
+            pass  # invalid code, just ignore
+
     # Create order
     order = Order.objects.create(
         user=request.user if request.user.is_authenticated else None,
@@ -361,14 +443,20 @@ def create_order(request):
         shipping_state=data['shipping_state'],
         shipping_pincode=data['shipping_pincode'],
         total_amount=total_amount,
+        discount_amount=discount_amount,
+        coupon_code=applied_coupon.code if applied_coupon else '',
         status='PENDING',
         payment_status='PENDING'
     )
-    
+
     # Create order items
     for item_data in order_items:
         product = item_data.pop('product')
         OrderItem.objects.create(order=order, product=product, **item_data)
+
+    # Increment coupon usage after order is saved
+    if applied_coupon:
+        Coupon.objects.filter(pk=applied_coupon.pk).update(times_used=applied_coupon.times_used + 1)
     
     # Create Razorpay order via service layer
     try:

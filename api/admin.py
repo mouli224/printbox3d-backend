@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Category, Material, Product, CustomOrder,
     ContactMessage, Newsletter, Testimonial,
-    Order, OrderItem, Payment
+    Order, OrderItem, Payment, Coupon
 )
 
 
@@ -145,6 +145,31 @@ class OrderItemInline(admin.TabularInline):
     can_delete = False
 
 
+@admin.register(Coupon)
+class CouponAdmin(admin.ModelAdmin):
+    list_display = ['code', 'discount_type', 'discount_value', 'min_order_amount', 'max_uses', 'times_used', 'is_active', 'expiry_date', 'created_at']
+    list_filter = ['discount_type', 'is_active', 'created_at']
+    search_fields = ['code']
+    list_editable = ['is_active']
+    readonly_fields = ['times_used', 'created_at']
+
+    fieldsets = (
+        ('Coupon Code', {
+            'fields': ('code', 'is_active')
+        }),
+        ('Discount', {
+            'fields': ('discount_type', 'discount_value', 'max_discount_amount')
+        }),
+        ('Restrictions', {
+            'fields': ('min_order_amount', 'max_uses', 'expiry_date')
+        }),
+        ('Usage', {
+            'fields': ('times_used', 'created_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ['order_id', 'customer_name', 'customer_email', 'total_amount', 'status', 'payment_status', 'created_at']
@@ -156,7 +181,7 @@ class OrderAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Order Information', {
-            'fields': ('order_id', 'status', 'payment_status', 'total_amount')
+            'fields': ('order_id', 'status', 'payment_status', 'total_amount', 'discount_amount', 'coupon_code')
         }),
         ('Customer Details', {
             'fields': ('customer_name', 'customer_email', 'customer_phone')
