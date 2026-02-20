@@ -581,9 +581,9 @@ def verify_payment_simple(request):
             except Exception as email_error:
                 logger.error(f"Email sending error: {email_error}", exc_info=True)
         
-        # Start email thread but don't wait for it
+        # daemon=False ensures the thread completes even after the response is returned
         email_thread = threading.Thread(target=send_email_async)
-        email_thread.daemon = True
+        email_thread.daemon = False
         email_thread.start()
         
         response = JsonResponse({
