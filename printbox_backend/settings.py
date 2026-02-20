@@ -276,7 +276,7 @@ SIMPLE_JWT = {
 # -------------------------------------------------------------------------
 EMAIL_BACKEND = config(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend"  # Prints to console in development
+    default="api.email_backend.HostingerEmailBackend"
 )
 
 # SMTP Configuration (optional - for production)
