@@ -105,8 +105,8 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category__slug', 'material__name', 'is_featured']
     search_fields = ['name', 'description']
-    ordering_fields = ['price', 'name', 'created_at']
-    ordering = ['-created_at']
+    ordering_fields = ['price', 'name', 'created_at', 'is_featured']
+    ordering = ['-is_featured', '-created_at']
     lookup_field = 'slug'
     
     def get_serializer_class(self):
