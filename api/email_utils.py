@@ -16,27 +16,37 @@ def _send_email(to: str, subject: str, text: str) -> None:
     resend_key = getattr(settings, 'RESEND_API_KEY', '')
     from_email = settings.DEFAULT_FROM_EMAIL
 
+    logger.info(f'[EMAIL] to={to} | mode={"resend" if resend_key else "smtp"} | from={from_email}')
+
     if resend_key:
-        resp = _requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_key}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'from': from_email,
-                'to': [to],
-                'subject': subject,
-                'text': text,
-            },
-            timeout=30,
-        )
-        if not resp.ok:
-            raise RuntimeError(
-                f'Resend API error {resp.status_code}: {resp.text}'
+        payload = {
+            'from': from_email,
+            'to': [to],
+            'subject': subject,
+            'text': text,
+        }
+        logger.info(f'[EMAIL] Resend payload from={from_email} to={to}')
+        try:
+            resp = _requests.post(
+                'https://api.resend.com/emails',
+                headers={
+                    'Authorization': f'Bearer {resend_key}',
+                    'Content-Type': 'application/json',
+                },
+                json=payload,
+                timeout=30,
             )
-        logger.info(f'Email sent via Resend to {to} (id={resp.json().get("id")})')
+            logger.info(f'[EMAIL] Resend response: status={resp.status_code} body={resp.text}')
+            if not resp.ok:
+                raise RuntimeError(
+                    f'Resend API error {resp.status_code}: {resp.text}'
+                )
+            logger.info(f'[EMAIL] Sent via Resend to {to} id={resp.json().get("id")}')
+        except _requests.exceptions.RequestException as e:
+            logger.error(f'[EMAIL] Resend network error: {e}', exc_info=True)
+            raise
     else:
+        logger.info(f'[EMAIL] Sending via SMTP {settings.EMAIL_HOST}:{settings.EMAIL_PORT}')
         send_mail(
             subject=subject,
             message=text,
@@ -44,7 +54,7 @@ def _send_email(to: str, subject: str, text: str) -> None:
             recipient_list=[to],
             fail_silently=False,
         )
-        logger.info(f'Email sent via SMTP to {to}')
+        logger.info(f'[EMAIL] Sent via SMTP to {to}')
 
 
 def send_order_confirmation_email(order, prefetched_items=None):
