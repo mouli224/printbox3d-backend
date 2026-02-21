@@ -18,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.db import connection as db_connection
 import logging
 import threading
 import json
@@ -574,9 +575,14 @@ def verify_payment_simple(request):
         order.save()
         
         # Send confirmation email in background thread (non-blocking)
+        # Pre-fetch items in the main thread before handing off to the background thread
+        order_items = list(order.items.values('product_name', 'quantity', 'product_price', 'subtotal'))
+
         def send_email_async():
+            # Close the inherited DB connection so the thread gets its own fresh one
+            db_connection.close()
             try:
-                send_order_confirmation_email(order)
+                send_order_confirmation_email(order, prefetched_items=order_items)
                 logger.info(f"Confirmation email sent for order {order.order_id}")
             except Exception as email_error:
                 logger.error(f"Email sending error: {email_error}", exc_info=True)

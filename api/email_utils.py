@@ -4,21 +4,34 @@ from django.conf import settings
 from django.utils.html import strip_tags
 
 
-def send_order_confirmation_email(order):
+def send_order_confirmation_email(order, prefetched_items=None):
     """
-    Send order confirmation email to customer
+    Send order confirmation email to customer.
+    ``prefetched_items`` can be passed as a list of dicts (from .values()) to
+    avoid hitting the database inside a background thread.
     """
     subject = f'Order Confirmation - PrintBox3D #{order.order_id}'
     
     # Prepare order items details
-    items_details = []
-    for item in order.items.all():
-        items_details.append({
-            'name': item.product_name,
-            'quantity': item.quantity,
-            'price': item.product_price,
-            'subtotal': item.subtotal
-        })
+    if prefetched_items is not None:
+        items_details = [
+            {
+                'name': item['product_name'],
+                'quantity': item['quantity'],
+                'price': item['product_price'],
+                'subtotal': item['subtotal']
+            }
+            for item in prefetched_items
+        ]
+    else:
+        items_details = []
+        for item in order.items.all():
+            items_details.append({
+                'name': item.product_name,
+                'quantity': item.quantity,
+                'price': item.product_price,
+                'subtotal': item.subtotal
+            })
     
     # Email context
     context = {
