@@ -289,6 +289,11 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL  = config("DEFAULT_FROM_EMAIL",  default="PrintBox3D <info@printbox3d.com>")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
+# Resend API (preferred over SMTP on cloud platforms that block outbound SMTP)
+# Get a free API key at https://resend.com — 3,000 emails/month free
+# When set, ALL emails will use Resend API instead of SMTP.
+RESEND_API_KEY = config("RESEND_API_KEY", default="")
+
 # -------------------------------------------------------------------------
 # RAZORPAY CONFIG
 # -------------------------------------------------------------------------

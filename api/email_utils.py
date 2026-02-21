@@ -1,7 +1,50 @@
-from django.core.mail import send_mail, EmailMultiAlternatives
-from django.template.loader import render_to_string
+from django.core.mail import send_mail
 from django.conf import settings
-from django.utils.html import strip_tags
+import logging
+import requests as _requests
+
+logger = logging.getLogger(__name__)
+
+
+def _send_email(to: str, subject: str, text: str) -> None:
+    """
+    Unified email sender.
+    Uses Resend API when RESEND_API_KEY is configured (recommended for cloud
+    deployments where outbound SMTP ports are often blocked).
+    Falls back to Django SMTP otherwise.
+    """
+    resend_key = getattr(settings, 'RESEND_API_KEY', '')
+    from_email = settings.DEFAULT_FROM_EMAIL
+
+    if resend_key:
+        resp = _requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'from': from_email,
+                'to': [to],
+                'subject': subject,
+                'text': text,
+            },
+            timeout=30,
+        )
+        if not resp.ok:
+            raise RuntimeError(
+                f'Resend API error {resp.status_code}: {resp.text}'
+            )
+        logger.info(f'Email sent via Resend to {to} (id={resp.json().get("id")})')
+    else:
+        send_mail(
+            subject=subject,
+            message=text,
+            from_email=from_email,
+            recipient_list=[to],
+            fail_silently=False,
+        )
+        logger.info(f'Email sent via SMTP to {to}')
 
 
 def send_order_confirmation_email(order, prefetched_items=None):
@@ -77,28 +120,11 @@ Best regards,
 PrintBox3D Team
 """
     
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
-        logger.info(f"Attempting to send email to {order.customer_email}")
-        logger.info(f"SMTP Config: {settings.EMAIL_HOST}:{settings.EMAIL_PORT}, TLS={settings.EMAIL_USE_TLS}, SSL={getattr(settings, 'EMAIL_USE_SSL', False)}")
-        logger.info(f"From: {settings.DEFAULT_FROM_EMAIL}")
-        
-        # Send email to customer
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[order.customer_email],
-            fail_silently=False,
-        )
-        
-        logger.info(f"Email sent successfully to {order.customer_email}")
-        
+        logger.info(f"Sending order confirmation to {order.customer_email}")
+        _send_email(order.customer_email, subject, message)
         # Send notification to admin
         send_order_notification_to_admin(order, items_details)
-        
         return True
     except Exception as e:
         logger.error(f"Error sending order confirmation email: {e}", exc_info=True)
@@ -140,16 +166,10 @@ View order details in the admin panel.
 """
     
     try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=['info@printbox3d.com'],
-            fail_silently=False,
-        )
+        _send_email('info@printbox3d.com', subject, message)
         return True
     except Exception as e:
-        print(f"Error sending admin notification email: {e}")
+        logger.error(f"Error sending admin notification email: {e}", exc_info=True)
         return False
 
 
@@ -211,27 +231,11 @@ View request details in the admin panel.
 """
     
     try:
-        # Send to customer
-        send_mail(
-            subject=customer_subject,
-            message=customer_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[custom_order.email],
-            fail_silently=False,
-        )
-        
-        # Send to admin
-        send_mail(
-            subject=admin_subject,
-            message=admin_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=['info@printbox3d.com'],
-            fail_silently=False,
-        )
-        
+        _send_email(custom_order.email, customer_subject, customer_message)
+        _send_email('info@printbox3d.com', admin_subject, admin_message)
         return True
     except Exception as e:
-        print(f"Error sending custom order notification: {e}")
+        logger.error(f"Error sending custom order notification: {e}", exc_info=True)
         return False
 
 
@@ -274,25 +278,9 @@ Please respond to the customer at: {contact_message.email}
 """
     
     try:
-        # Send acknowledgment to customer
-        send_mail(
-            subject=customer_subject,
-            message=customer_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[contact_message.email],
-            fail_silently=False,
-        )
-        
-        # Send notification to admin
-        send_mail(
-            subject=admin_subject,
-            message=admin_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=['info@printbox3d.com'],
-            fail_silently=False,
-        )
-        
+        _send_email(contact_message.email, customer_subject, customer_message)
+        _send_email('info@printbox3d.com', admin_subject, admin_message)
         return True
     except Exception as e:
-        print(f"Error sending contact message notification: {e}")
+        logger.error(f"Error sending contact message notification: {e}", exc_info=True)
         return False
